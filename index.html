@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+  <meta content="#070a12" name="theme-color"/>
+  <meta content="dark" name="color-scheme"/>
+  <meta content="index, follow" name="robots"/>
+  <meta content="StudyPulse is a free student focus timer and Pomodoro study tracker for exams. Plan tasks, take breathing breaks, and track your study progress right in your browser." name="description"/>
+  <meta content="website" property="og:type"/>
+  <meta content="StudyPulse" property="og:site_name"/>
+  <meta content="StudyPulse &mdash; Student Focus Timer &amp; Study Planner" property="og:title"/>
+  <meta content="A calm, free Pomodoro study timer for students. Focus on one task, take mindful breaks, and track your exam preparation progress." property="og:description"/>
+  <meta content="summary" name="twitter:card"/>
+  <meta content="StudyPulse &mdash; Student Focus Timer" name="twitter:title"/>
+  <meta content="A free, browser-based focus timer and study planner for students. No account, no ads, no downloads." name="twitter:description"/>
+  <link href="manifest.webmanifest" rel="manifest"/>
+  <link href="icon.svg" rel="icon" type="image/svg+xml"/>
+  <title>
+   StudyPulse &mdash; Student Focus Timer &amp; Study Planner
+  </title>
+  <link href="style.css" rel="stylesheet"/>
+  <script defer="" src="app.js">
+  </script>
+  <style>
+   .seo-faq {
+      margin-top: 28px;
+      padding: 24px;
+      border-radius: 22px;
+    }
+    .seo-faq h2 {
+      margin: 0 0 18px;
+      color: var(--text);
+      font-size: clamp(18px, 2.5vw, 22px);
+    }
+    .seo-faq h3 {
+      margin: 18px 0 6px;
+      color: var(--text);
+      font-size: 13px;
+    }
+    .seo-faq p {
+      max-width: 850px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.75;
+    }
+    .seo-faq .faq-intro {
+      margin-bottom: 8px;
+    }
+    @media (max-width: 600px) {
+      .seo-faq { padding: 19px; }
+    }
+  </style>
+ </head>
+ <body data-theme="default">
+  <div aria-hidden="true" class="ambient ambient-one">
+  </div>
+  <div aria-hidden="true" class="ambient ambient-two">
+  </div>
+  <div aria-hidden="true" class="ambient ambient-three">
+  </div>
+  <div class="app-shell">
+   <header class="topbar">
+    <a aria-label="StudyPulse home" class="brand" data-home="" href="#view-focus">
+     <span aria-hidden="true" class="brand-mark">
+      <svg fill="none" viewbox="0 0 32 32">
+       <path d="M16 3.5 27.5 10v12L16 28.5 4.5 22V10L16 3.5Z">
+       </path>
+       <path d="M16 9v14M9.5 12.8l13 6.4M22.5 12.8l-13 6.4">
+       </path>
+       <circle cx="16" cy="16" r="2.1">
+       </circle>
+      </svg>
+     </span>
+     <span class="brand-name">
+      Study
+      <span>
+       Pulse
+      </span>
+      <small>
+       STUDENT FOCUS SPACE
+      </small>
+     </span>
+    </a>
+    <div class="topbar-right">
+     <span class="local-status">
+      <span class="status-dot">
+      </span>
+      LOCAL SESSION
+     </span>
+     <button aria-label="Open StudyPulse welcome and help" class="icon-button help-button" id="help-button" title="Help" type="button">
+      ?
+     </button>
+     <button aria-haspopup="dialog" aria-label="Open settings" class="icon-button" id="settings-button" title="Settings" type="button">
+      <svg aria-hidden="true" viewbox="0 0 24 24">
+       <path d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4Z">
+       </path>
+       <path d="m19.2 13.5 1.1.8-1.2 2.1-1.3-.5a7.6 7.6 0 0 1-1.5.9l-.2 1.4h-2.4l-.3-1.4a7.5 7.5 0 0 1-1.7 0l-.8 1.2-2.1-1.2.5-1.3a7.4 7.4 0 0 1-.9-1.5l-1.4-.2v-2.4l1.4-.3a7.5 7.5 0 0 1 0-1.7l-1.2-.8 1.2-2.1 1.3.5a7.6 7.6 0 0 1 1.5-.9l.2-1.4h2.4l.3 1.4a7.5 7.5 0 0 1 1.7 0l.8-1.2 2.1 1.2-.5 1.3a7.4 7.4 0 0 1 .9 1.5l1.4.2v2.4l-1.4.3a7.5 7.5 0 0 1 0 1.7Z">
+       </path>
+      </svg>
+     </button>
+    </div>
+   </header>
+   <main class="main-content" id="app-main">
+    <!-- FOCUS VIEW -->
+    <section aria-labelledby="welcome-title" class="view-panel" data-view="focus" id="view-focus">
+     <div class="intro-row">
+      <div>
+       <p class="eyebrow">
+        <span class="eyebrow-line">
+        </span>
+        YOUR QUIET SPACE
+       </p>
+       <h1 id="welcome-title">
+        Make room for
+        <span>
+         deep focus.
+        </span>
+       </h1>
+       <p class="intro-copy">
+        One task. One session. Give your attention somewhere to land.
+       </p>
+      </div>
+      <div class="date-chip" id="today-label">
+      </div>
+     </div>
+     <section aria-label="Focus workspace" class="workspace">
+      <div aria-labelledby="timer-heading" class="timer-card glass-card">
+       <div class="timer-card-top">
+        <div class="mode-pill">
+         <span class="mode-pulse">
+         </span>
+         <span id="mode-label">
+          FOCUS MODE
+         </span>
+        </div>
+        <span class="session-length" id="session-length">
+         25 MIN SESSION
+        </span>
+       </div>
+       <div class="timer-stage">
+        <div aria-hidden="true" class="timer-halo">
+        </div>
+        <svg aria-label="Timer progress" class="timer-ring" role="img" viewbox="0 0 280 280">
+         <defs>
+          <lineargradient id="ringGradient" x1="0" x2="1" y1="0" y2="1">
+           <stop offset="0%" stop-color="var(--accent)">
+           </stop>
+           <stop offset="100%" stop-color="var(--accent-2)">
+           </stop>
+          </lineargradient>
+         </defs>
+         <circle class="ring-track" cx="140" cy="140" r="124">
+         </circle>
+         <circle class="ring-progress" cx="140" cy="140" id="timer-progress" r="124">
+         </circle>
+        </svg>
+        <div class="timer-center">
+         <p class="timer-caption" id="timer-heading">
+          TIME TO FOCUS
+         </p>
+         <div aria-label="25 minutes remaining" aria-live="off" class="timer-value" id="timer-display" role="timer">
+          25:00
+         </div>
+         <p aria-live="polite" class="timer-state" id="timer-state">
+          Ready when you are
+         </p>
+        </div>
+       </div>
+       <div aria-label="Timer controls" class="timer-controls">
+        <button class="primary-button" id="start-button" type="button">
+         <svg aria-hidden="true" viewbox="0 0 24 24">
+          <path d="m9 6 10 6-10 6V6Z">
+          </path>
+         </svg>
+         <span>
+          Start focus
+         </span>
+        </button>
+        <button class="secondary-button" hidden="" id="pause-button" type="button">
+         <svg aria-hidden="true" viewbox="0 0 24 24">
+          <path d="M8.5 6.5v11M15.5 6.5v11">
+          </path>
+         </svg>
+         <span>
+          Pause
+         </span>
+        </button>
+        <button aria-label="Reset current timer" class="icon-button reset-button" id="reset-button" title="Reset timer" type="button">
+         <svg aria-hidden="true" viewbox="0 0 24 24">
+          <path d="M4.8 11a7.3 7.3 0 1 1 .5 4.1M4.8 5.8V11h5.1">
+          </path>
+         </svg>
+        </button>
+       </div>
+       <p class="timer-hint" id="timer-hint">
+        Find a comfortable position and begin.
+       </p>
+       <div aria-live="polite" class="break-breathing" hidden="" id="break-breathing">
+        <div class="breath-orbit">
+         <div class="breath-circle" id="breath-circle">
+         </div>
+         <span id="breath-phase">
+          Breathe in
+         </span>
+        </div>
+        <p>
+         Box breathing &middot; 4 seconds per phase
+        </p>
+        <button class="text-button" id="skip-break-button" type="button">
+         Skip break
+        </button>
+       </div>
+      </div>
+      <aside class="side-column">
+       <section aria-labelledby="task-heading" class="task-card glass-card">
+        <div class="section-heading">
+         <div aria-hidden="true" class="section-icon task-icon">
+          <svg viewbox="0 0 24 24">
+           <path d="M7 5.5h10M7 10.5h10M7 15.5h6">
+           </path>
+           <path d="M4.5 5.5h.01M4.5 10.5h.01M4.5 15.5h.01">
+           </path>
+          </svg>
+         </div>
+         <div>
+          <p class="eyebrow">
+           STAY ON TRACK
+          </p>
+          <h2 id="task-heading">
+           Current task
+          </h2>
+         </div>
+        </div>
+        <label class="field-label" for="active-task-select">
+         Choose what you're working on
+        </label>
+        <select class="field-control" id="active-task-select">
+         <option value="">
+          No task selected
+         </option>
+        </select>
+        <div class="task-input-wrap">
+         <input aria-label="Current focus note" autocomplete="off" id="task-input" maxlength="120" placeholder="Or add a quick focus note&hellip;" type="text"/>
+         <button aria-label="Clear current task note" class="clear-task-button" id="clear-task-button" type="button">
+          <svg aria-hidden="true" viewbox="0 0 24 24">
+           <path d="m7 7 10 10M17 7 7 17">
+           </path>
+          </svg>
+         </button>
+        </div>
+        <div class="task-meta">
+         <span class="task-save-dot">
+         </span>
+         <span id="task-save-status">
+          Saved on this device
+         </span>
+         <span class="character-count" id="task-character-count">
+          0/120
+         </span>
+        </div>
+        <div class="focus-reminder">
+         <span aria-hidden="true" class="reminder-spark">
+          ✦
+         </span>
+         <p id="task-reminder">
+          Keep it small. Your only job is the next 25 minutes.
+         </p>
+        </div>
+        <button class="subtle-link" data-go-view="tasks" type="button">
+         Manage tasks
+         <span>
+          &nearrow;
+         </span>
+        </button>
+       </section>
+       <section aria-labelledby="progress-heading" class="progress-card glass-card">
+        <div class="section-heading progress-heading-row">
+         <div aria-hidden="true" class="section-icon progress-icon">
+          <svg viewbox="0 0 24 24">
+           <path d="M4.5 19V12M10 19V6M15.5 19v-9M21 19V4">
+           </path>
+          </svg>
+         </div>
+         <div>
+          <p class="eyebrow">
+           SMALL STEPS ADD UP
+          </p>
+          <h2 id="progress-heading">
+           Today's progress
+          </h2>
+         </div>
+        </div>
+        <div class="streak-strip">
+         <span aria-hidden="true" class="flame" id="streak-flame">
+          🔥
+         </span>
+         <div>
+          <strong id="streak-current">
+           0 Day Streak
+          </strong>
+          <small>
+           Longest:
+           <span id="streak-longest">
+            0 days
+           </span>
+          </small>
+         </div>
+        </div>
+        <div class="stats-grid">
+         <div class="stat-tile">
+          <span class="stat-number" id="focus-minutes">
+           0
+          </span>
+          <span class="stat-label">
+           Focus minutes
+          </span>
+         </div>
+         <div class="stat-tile">
+          <span class="stat-number" id="sessions-count">
+           0
+          </span>
+          <span class="stat-label">
+           Sessions done
+          </span>
+         </div>
+        </div>
+        <div class="history-block">
+         <div class="history-title-row">
+          <span class="history-title">
+           Session history
+          </span>
+          <span class="history-date" id="history-date">
+           TODAY
+          </span>
+         </div>
+         <ul aria-live="polite" class="history-list" id="history-list">
+          <li class="empty-history">
+           Your completed sessions will appear here.
+          </li>
+         </ul>
+        </div>
+       </section>
+      </aside>
+     </section>
+     <section aria-labelledby="completion-title" aria-live="polite" class="completion-card glass-card" hidden="" id="completion-card">
+      <div aria-hidden="true" class="completion-orbit">
+       ✦
+      </div>
+      <div class="completion-copy">
+       <p class="eyebrow">
+        A MOMENT WELL SPENT
+       </p>
+       <h2 id="completion-title">
+        Session complete.
+       </h2>
+       <p id="completion-description">
+        You gave your attention to one thing. That matters.
+       </p>
+      </div>
+      <div class="completion-actions">
+       <button class="completion-button" id="start-break-button" type="button">
+        Start 5-minute break
+       </button>
+       <button class="text-button" id="another-session-button" type="button">
+        Skip break and start another focus session
+       </button>
+      </div>
+     </section>
+     <section aria-labelledby="about-studypulse-title" class="seo-faq glass-card">
+      <p class="eyebrow">
+       A SIMPLE STUDY ROUTINE
+      </p>
+      <h2 id="about-studypulse-title">
+       About StudyPulse
+      </h2>
+      <p class="faq-intro">
+       StudyPulse is a free student focus timer, Pomodoro study tracker for exams, and browser-based productivity tool for students. Plan a task, focus for one session, and review your progress without creating an account.
+      </p>
+      <h3>
+       How can I focus while studying for exams?
+      </h3>
+      <p>
+       Choose one specific task, set a manageable focus period, and remove distractions before you begin. StudyPulse uses a simple 25-minute focus session followed by an optional five-minute break, helping you work in clear, repeatable blocks.
+      </p>
+      <h3>
+       What is the best free Pomodoro timer app for students?
+      </h3>
+      <p>
+       The best timer is one that is easy to start and fits your study routine. StudyPulse is a free, no-account Pomodoro study tracker with task priorities, focus history, streaks, and gentle break reminders. Your progress stays in your browser.
+      </p>
+      <h3>
+       Can I use StudyPulse as a free offline study planner?
+      </h3>
+      <p>
+       Yes. StudyPulse stores tasks, preferences, and session history locally in your browser. When served over HTTPS or localhost, its optional Progressive Web App cache can also keep the app shell available offline after the first successful visit.
+      </p>
+     </section>
+    </section>
+    <!-- TASKS VIEW -->
+    <section aria-labelledby="tasks-title" class="view-panel" data-view="tasks" hidden="" id="view-tasks">
+     <div class="page-heading">
+      <div>
+       <p class="eyebrow">
+        <span class="eyebrow-line">
+        </span>
+        PLAN WITH INTENTION
+       </p>
+       <h1 id="tasks-title">
+        Your
+        <span>
+         tasks.
+        </span>
+       </h1>
+       <p class="intro-copy">
+        Keep the list small. Choose one thing to move forward.
+       </p>
+      </div>
+      <div class="date-chip">
+       TASK SPACE
+      </div>
+     </div>
+     <section class="glass-card task-manager-card">
+      <div class="section-heading">
+       <div aria-hidden="true" class="section-icon task-icon">
+        <svg viewbox="0 0 24 24">
+         <path d="M12 5v14M5 12h14">
+         </path>
+        </svg>
+       </div>
+       <div>
+        <p class="eyebrow">
+         NEXT SMALL STEP
+        </p>
+        <h2 id="task-form-title">
+         Add a task
+        </h2>
+       </div>
+      </div>
+      <form class="task-form" id="task-form">
+       <label class="field-label" for="new-task-title">
+        Task name
+       </label>
+       <input autocomplete="off" class="field-control" id="new-task-title" maxlength="120" placeholder="e.g. Revise coordinate geometry" required="" type="text"/>
+       <div class="form-grid">
+        <div>
+         <label class="field-label" for="task-estimate">
+          Estimated sessions
+         </label>
+         <input class="field-control" id="task-estimate" inputmode="numeric" max="50" min="1" type="number" value="2"/>
+        </div>
+        <div>
+         <label class="field-label" for="task-priority">
+          Priority
+         </label>
+         <select class="field-control" id="task-priority">
+          <option value="medium">
+           Medium
+          </option>
+          <option value="high">
+           High
+          </option>
+          <option value="low">
+           Low
+          </option>
+         </select>
+        </div>
+       </div>
+       <div class="form-actions">
+        <button class="primary-button compact-button" id="save-task-button" type="submit">
+         Save task
+        </button>
+        <button class="text-button" hidden="" id="cancel-edit-button" type="button">
+         Cancel edit
+        </button>
+       </div>
+      </form>
+     </section>
+     <section class="task-list-section">
+      <div class="list-section-heading">
+       <div>
+        <p class="eyebrow">
+         IN PROGRESS
+        </p>
+        <h2>
+         Active tasks
+         <span class="count-pill" id="active-task-count">
+          0
+         </span>
+        </h2>
+       </div>
+       <span class="section-caption">
+        Choose one to link it to your timer
+       </span>
+      </div>
+      <div class="task-list" id="active-task-list">
+      </div>
+     </section>
+     <section class="task-list-section completed-section">
+      <div class="list-section-heading">
+       <div>
+        <p class="eyebrow">
+         DONE FOR NOW
+        </p>
+        <h2>
+         Completed
+         <span class="count-pill" id="completed-task-count">
+          0
+         </span>
+        </h2>
+       </div>
+      </div>
+      <div class="task-list" id="completed-task-list">
+      </div>
+     </section>
+    </section>
+    <!-- PROGRESS VIEW -->
+    <section aria-labelledby="analytics-title" class="view-panel" data-view="progress" hidden="" id="view-progress">
+     <div class="page-heading">
+      <div>
+       <p class="eyebrow">
+        <span class="eyebrow-line">
+        </span>
+        NOTICE YOUR MOMENTUM
+       </p>
+       <h1>
+        Your
+        <span>
+         progress.
+        </span>
+       </h1>
+       <p class="intro-copy">
+        A quiet look at the time you've given to what matters.
+       </p>
+      </div>
+      <div class="date-chip">
+       PERSONAL ANALYTICS
+      </div>
+     </div>
+     <section class="analytics-stats stats-grid four-stats">
+      <div class="stat-tile">
+       <span class="stat-number" id="alltime-minutes">
+        0
+       </span>
+       <span class="stat-label">
+        Total focus minutes
+       </span>
+      </div>
+      <div class="stat-tile">
+       <span class="stat-number" id="alltime-sessions">
+        0
+       </span>
+       <span class="stat-label">
+        Total sessions
+       </span>
+      </div>
+      <div class="stat-tile">
+       <span class="stat-number" id="analytics-streak">
+        0
+       </span>
+       <span class="stat-label">
+        Current streak
+       </span>
+      </div>
+      <div class="stat-tile">
+       <span class="stat-number" id="analytics-longest">
+        0
+       </span>
+       <span class="stat-label">
+        Longest streak
+       </span>
+      </div>
+     </section>
+     <section class="glass-card chart-card">
+      <div class="chart-header">
+       <div>
+        <p class="eyebrow">
+         CONSISTENCY OVER TIME
+        </p>
+        <h2 id="analytics-title">
+         Focus activity
+        </h2>
+       </div>
+       <div aria-label="Chart time range" class="range-toggle" role="group">
+        <button aria-pressed="true" class="range-button active" data-range="7" type="button">
+         7 days
+        </button>
+        <button aria-pressed="false" class="range-button" data-range="30" type="button">
+         30 days
+        </button>
+       </div>
+      </div>
+      <div class="chart-wrap">
+       <canvas aria-label="Focus minutes for the selected date range" id="focus-chart" role="img">
+       </canvas>
+      </div>
+      <div class="chart-legend">
+       <span>
+        <i>
+        </i>
+        Focus minutes per day
+       </span>
+       <span id="chart-total">
+        0 minutes in this period
+       </span>
+      </div>
+     </section>
+     <section class="glass-card analytics-note">
+      <span class="note-spark">
+       ✦
+      </span>
+      <p id="analytics-insight">
+       Your focus history will appear here after your first completed session.
+      </p>
+     </section>
+    </section>
+    <footer class="app-footer">
+     <span aria-hidden="true" class="footer-orbit">
+     </span>
+     <span id="storage-note">
+      Your focus data stays on this device.
+     </span>
+     <span class="footer-version">
+      STUDYPULSE &middot; V1.1
+     </span>
+    </footer>
+   </main>
+   <nav aria-label="Main navigation" class="bottom-nav">
+    <button aria-current="page" class="nav-item active" data-nav="focus" type="button">
+     <svg aria-hidden="true" viewbox="0 0 24 24">
+      <path d="M12 3.8 20 8v8l-8 4.2L4 16V8l8-4.2Z">
+      </path>
+      <path d="M12 8v8m-4-6 8 4">
+      </path>
+     </svg>
+     <span>
+      Focus
+     </span>
+    </button>
+    <button class="nav-item" data-nav="tasks" type="button">
+     <svg aria-hidden="true" viewbox="0 0 24 24">
+      <path d="M8 5.5h11M8 10.5h11M8 15.5h7M4.5 5.5h.01M4.5 10.5h.01M4.5 15.5h.01">
+      </path>
+     </svg>
+     <span>
+      Tasks
+     </span>
+    </button>
+    <button class="nav-item" data-nav="progress" type="button">
+     <svg aria-hidden="true" viewbox="0 0 24 24">
+      <path d="M4.5 18.5V12M10 18.5V6M15.5 18.5v-9M21 18.5V3.5">
+      </path>
+     </svg>
+     <span>
+      Progress
+     </span>
+    </button>
+   </nav>
+  </div>
+  <!-- SETTINGS -->
+  <dialog aria-labelledby="settings-title" class="settings-dialog" id="settings-dialog">
+   <div class="dialog-topline">
+    <div aria-hidden="true" class="section-icon settings-icon">
+     <svg viewbox="0 0 24 24">
+      <circle cx="12" cy="12" r="3">
+      </circle>
+      <path d="M19 13.5a7.7 7.7 0 0 0 0-3l1.6-1.2-1.6-2.8-1.9.7a7.4 7.4 0 0 0-2.6-1.5L14.2 3h-3.3l-.3 2.7A7.4 7.4 0 0 0 8 7.2l-1.9-.7-1.6 2.8L6.1 10.5a7.7 7.7 0 0 0 0 3l-1.6 1.2 1.6 2.8 1.9-.7a7.4 7.4 0 0 0 2.6 1.5l.3 2.7h3.3l.3-2.7a7.4 7.4 0 0 0 2.6-1.5l1.9.7 1.6-2.8z">
+      </path>
+     </svg>
+    </div>
+    <button aria-label="Close settings" class="dialog-close icon-button" id="close-settings-button" type="button">
+     <svg aria-hidden="true" viewbox="0 0 24 24">
+      <path d="m7 7 10 10M17 7 7 17">
+      </path>
+     </svg>
+    </button>
+   </div>
+   <p class="eyebrow">
+    YOUR SPACE, YOUR PACE
+   </p>
+   <h2 id="settings-title">
+    Focus settings
+   </h2>
+   <p class="dialog-description">
+    Tune the atmosphere. Your preferences stay on this device.
+   </p>
+   <section class="settings-group">
+    <h3>
+     Voice &amp; alerts
+    </h3>
+    <label class="setting-row">
+     <span>
+      <strong>
+       Sound notifications
+      </strong>
+      <small>
+       Voice alerts and gentle beeps
+      </small>
+     </span>
+     <input class="switch-input" id="alerts-toggle" type="checkbox"/>
+    </label>
+    <label class="setting-row volume-setting">
+     <span>
+      <strong>
+       Alert volume
+      </strong>
+      <small>
+       Speech and notification beep
+      </small>
+     </span>
+     <input id="alert-volume" max="100" min="0" type="range" value="55"/>
+     <output id="alert-volume-value">
+      55%
+     </output>
+    </label>
+   </section>
+   <section class="settings-group">
+    <h3>
+     Ambient sound
+    </h3>
+    <label class="setting-row">
+     <span>
+      <strong>
+       Ambient audio
+      </strong>
+      <small>
+       Generated in your browser
+      </small>
+     </span>
+     <input class="switch-input" id="ambient-toggle" type="checkbox"/>
+    </label>
+    <label class="field-label" for="ambient-type">
+     Soundscape
+    </label>
+    <select class="field-control" id="ambient-type">
+     <option value="rain">
+      Rain
+     </option>
+     <option value="white">
+      White noise
+     </option>
+     <option value="cafe">
+      Caf&eacute; ambience
+     </option>
+    </select>
+    <label class="setting-row volume-setting">
+     <span>
+      <strong>
+       Ambient volume
+      </strong>
+      <small>
+       Automatically softer during breaks
+      </small>
+     </span>
+     <input id="ambient-volume" max="100" min="0" type="range" value="28"/>
+     <output id="ambient-volume-value">
+      28%
+     </output>
+    </label>
+   </section>
+   <section class="settings-group">
+    <h3>
+     Dark mode accent
+    </h3>
+    <div aria-label="Choose accent theme" class="theme-options" role="radiogroup">
+     <label class="theme-option">
+      <input name="theme" type="radio" value="default"/>
+      <span class="theme-swatch theme-default">
+      </span>
+      <span>
+       Default
+      </span>
+     </label>
+     <label class="theme-option">
+      <input name="theme" type="radio" value="purple"/>
+      <span class="theme-swatch theme-purple">
+      </span>
+      <span>
+       Cyberpunk Purple
+      </span>
+     </label>
+     <label class="theme-option">
+      <input name="theme" type="radio" value="ocean"/>
+      <span class="theme-swatch theme-ocean">
+      </span>
+      <span>
+       Ocean Cyan
+      </span>
+     </label>
+     <label class="theme-option">
+      <input name="theme" type="radio" value="emerald"/>
+      <span class="theme-swatch theme-emerald">
+      </span>
+      <span>
+       Emerald Green
+      </span>
+     </label>
+    </div>
+   </section>
+   <button class="dialog-done-button" id="settings-done-button" type="button">
+    Save preferences
+   </button>
+  </dialog>
+  <!-- FIRST-OPEN WELCOME / HELP -->
+  <dialog aria-labelledby="welcome-modal-title" class="welcome-dialog" id="welcome-dialog">
+   <div class="welcome-border">
+    <div class="welcome-content">
+     <div class="welcome-logo">
+      <span aria-hidden="true" class="brand-mark">
+       <svg fill="none" viewbox="0 0 32 32">
+        <path d="M16 3.5 27.5 10v12L16 28.5 4.5 22V10L16 3.5Z">
+        </path>
+        <path d="M16 9v14M9.5 12.8l13 6.4M22.5 12.8l-13 6.4">
+        </path>
+        <circle cx="16" cy="16" r="2.1">
+        </circle>
+       </svg>
+      </span>
+      <span>
+       Study
+       <span>
+        Pulse
+       </span>
+      </span>
+     </div>
+     <p class="eyebrow">
+      A CALMER WAY TO GET THINGS DONE
+     </p>
+     <h2 id="welcome-modal-title">
+      Zero-Friction Focus,
+      <br/>
+      <span>
+       Right in Your Browser.
+      </span>
+     </h2>
+     <p class="welcome-tagline">
+      One quiet space for your attention, your plans, and your progress.
+     </p>
+     <div class="feature-grid">
+      <div>
+       <span aria-hidden="true">
+        🔔
+       </span>
+       Voice alerts
+      </div>
+      <div>
+       <span aria-hidden="true">
+        🔥
+       </span>
+       Streaks
+      </div>
+      <div>
+       <span aria-hidden="true">
+        📝
+       </span>
+       Tasks
+      </div>
+      <div>
+       <span aria-hidden="true">
+        📊
+       </span>
+       Analytics
+      </div>
+      <div>
+       <span aria-hidden="true">
+        🌿
+       </span>
+       Breathing breaks
+      </div>
+      <div>
+       <span aria-hidden="true">
+        🎨
+       </span>
+       Themes
+      </div>
+      <div>
+       <span aria-hidden="true">
+        🎧
+       </span>
+       Ambient sound
+      </div>
+     </div>
+     <div class="welcome-why">
+      <strong>
+       Why StudyPulse?
+      </strong>
+      <p>
+       No app downloads. No cloud storage. No ads. Just instant focus &mdash; right here in your browser.
+      </p>
+     </div>
+     <button class="dialog-done-button welcome-start" id="welcome-start-button" type="button">
+      Start Focusing
+      <span aria-hidden="true">
+       &nearrow;
+      </span>
+     </button>
+     <p class="welcome-footnote">
+      Your settings and study progress stay on this device.
+     </p>
+    </div>
+   </div>
+  </dialog>
+  <div aria-atomic="false" aria-live="polite" class="toast-region" id="toast-region">
+  </div>
+ </body>
+</html>
