@@ -7,6 +7,13 @@
   const CIRCUMFERENCE = 2 * Math.PI * 124;
   const MAX_SESSIONS = 2000;
   const $ = (id) => document.getElementById(id);
+  const viewPanels = Array.from(document.querySelectorAll('.view-panel'));
+  const navItems = Array.from(document.querySelectorAll('.nav-item'));
+  const navButtons = Array.from(document.querySelectorAll('[data-nav]'));
+  const viewButtons = Array.from(document.querySelectorAll('[data-go-view]'));
+  const homeLinks = Array.from(document.querySelectorAll('[data-home]'));
+  const rangeButtons = Array.from(document.querySelectorAll('[data-range]'));
+  const themeRadios = Array.from(document.querySelectorAll('input[name="theme"]'));
 
   const el = {
     todayLabel: $('today-label'), timerDisplay: $('timer-display'), timerProgress: $('timer-progress'), timerState: $('timer-state'), timerHint: $('timer-hint'),
@@ -23,6 +30,9 @@
     welcomeDialog: $('welcome-dialog'), welcomeStart: $('welcome-start-button'), helpButton: $('help-button'), storageNote: $('storage-note'), toastRegion: $('toast-region'),
     timerHeading: $('timer-heading'),
   };
+  const startLabel = el.start.querySelector('span');
+  const progressView = $('view-progress');
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 
   let storageAvailable = true;
   let ticker = null;
@@ -149,10 +159,43 @@
     catch (error) { storageAvailable = false; }
     updateStorageNote();
   }
+  let lastStorageNote = '';
   function updateStorageNote() {
-    el.storageNote.textContent = storageAvailable ? 'Your focus data stays on this device.' : 'Browser storage is unavailable. Your progress may not survive a refresh.';
+    const message = storageAvailable ? 'Your focus data stays on this device.' : 'Browser storage is unavailable. Your progress may not survive a refresh.';
+    if (message !== lastStorageNote) {
+      el.storageNote.textContent = message;
+      lastStorageNote = message;
+    }
     el.storageNote.classList.toggle('storage-warning', !storageAvailable);
   }
+
+  function debounce(fn, delay = 240) {
+    let timeoutId = null;
+    const wrapped = (...args) => {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        timeoutId = null;
+        fn(...args);
+      }, delay);
+    };
+    wrapped.flush = () => {
+      if (timeoutId === null) return;
+      window.clearTimeout(timeoutId);
+      timeoutId = null;
+      fn();
+    };
+    wrapped.cancel = () => {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      timeoutId = null;
+    };
+    return wrapped;
+  }
+
+  const saveFocusNoteDebounced = debounce(() => {
+    persist();
+    el.taskSaveStatus.textContent = 'Saved on this device';
+  }, 260);
+  const savePreferencesDebounced = debounce(() => persist(), 260);
 
   function localDateKey(timestamp = Date.now()) {
     const date = new Date(timestamp);
@@ -283,8 +326,8 @@
   // ---------- Navigation and view rendering ----------
   function goView(name) {
     if (!['focus', 'tasks', 'progress'].includes(name)) return;
-    document.querySelectorAll('.view-panel').forEach((panel) => { panel.hidden = panel.dataset.view !== name; });
-    document.querySelectorAll('.nav-item').forEach((button) => {
+    viewPanels.forEach((panel) => { panel.hidden = panel.dataset.view !== name; });
+    navItems.forEach((button) => {
       const active = button.dataset.nav === name; button.classList.toggle('active', active);
       if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
     });
@@ -292,12 +335,15 @@
     if (name === 'tasks') renderTasks();
     window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
-  document.querySelectorAll('[data-nav]').forEach((button) => button.addEventListener('click', () => goView(button.dataset.nav)));
-  document.querySelectorAll('[data-go-view]').forEach((button) => button.addEventListener('click', () => goView(button.dataset.goView)));
-  document.querySelectorAll('[data-home]').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); goView('focus'); }));
+  navButtons.forEach((button) => button.addEventListener('click', () => goView(button.dataset.nav)));
+  viewButtons.forEach((button) => button.addEventListener('click', () => goView(button.dataset.goView)));
+  homeLinks.forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); goView('focus'); }));
 
   // ---------- Focus timer / session lifecycle ----------
   function stopTicker() { if (ticker !== null) { clearInterval(ticker); ticker = null; } }
+  el.timerProgress.style.strokeDasharray = String(CIRCUMFERENCE);
+  let lastTimerTitle = document.title;
+
   function updateTimerUI() {
     const timer = state.timer;
     if (timer.mode !== 'break') lastBreathPhase = -1;
@@ -305,12 +351,10 @@
     el.timerDisplay.textContent = formatClock(remaining);
     el.timerDisplay.setAttribute('aria-label', `${Math.floor(remaining / 60)} minutes and ${remaining % 60} seconds remaining`);
     const progress = timer.durationSeconds ? 1 - remaining / timer.durationSeconds : 0;
-    el.timerProgress.style.strokeDasharray = String(CIRCUMFERENCE);
     el.timerProgress.style.strokeDashoffset = String(CIRCUMFERENCE * (1 - Math.max(0, Math.min(1, progress))));
     const running = timer.status === 'running';
     el.start.hidden = running; el.pause.hidden = !running;
-    el.start.querySelector('span').textContent = timer.status === 'paused' ? 'Resume' : timer.mode === 'break' ? 'Start break' : 'Start focus';
-    el.pause.querySelector('span').textContent = 'Pause';
+    startLabel.textContent = timer.status === 'paused' ? 'Resume' : timer.mode === 'break' ? 'Start break' : 'Start focus';
     el.modeLabel.textContent = timer.mode === 'break' ? 'BREATHING BREAK' : 'FOCUS MODE';
     el.sessionLength.textContent = `${Math.round(timer.durationSeconds / 60)} MIN ${timer.mode === 'break' ? 'BREAK' : 'SESSION'}`;
     el.timerHeading.textContent = timer.mode === 'break' ? 'RESET YOUR PACE' : 'TIME TO FOCUS';
@@ -320,7 +364,8 @@
     else { el.timerState.textContent = timer.mode === 'break' ? 'Break ready' : 'Ready when you are'; el.timerHint.textContent = 'Find a comfortable position and begin.'; }
     el.completionCard.hidden = timer.mode !== 'focus' || timer.status !== 'completed';
     el.breakBreathing.hidden = timer.mode !== 'break';
-    document.title = `${formatClock(remaining)} · StudyPulse`;
+    const nextTitle = `${formatClock(remaining)} · StudyPulse`;
+    if (nextTitle !== lastTimerTitle) { document.title = nextTitle; lastTimerTitle = nextTitle; }
     if (timer.mode === 'break') updateBreathingPhase(remaining);
   }
   function updateBreathingPhase(remaining) {
@@ -339,36 +384,45 @@
     const todaySessions = state.sessions.filter((session) => localDateKey(session.completedAt) === today).sort((a, b) => b.completedAt - a.completedAt);
     el.focusMinutes.textContent = String(todaySessions.reduce((sum, session) => sum + Math.round(session.durationSeconds / 60), 0));
     el.sessionsCount.textContent = String(todaySessions.length);
-    el.historyList.replaceChildren();
+    const historyFragment = document.createDocumentFragment();
     if (!todaySessions.length) {
-      const empty = document.createElement('li'); empty.className = 'empty-history'; empty.textContent = 'Your completed sessions will appear here.'; el.historyList.append(empty);
+      const empty = document.createElement('li'); empty.className = 'empty-history'; empty.textContent = 'Your completed sessions will appear here.'; historyFragment.append(empty);
     } else todaySessions.slice(0, 8).forEach((session) => {
       const li = document.createElement('li'); li.className = 'history-row';
       const check = document.createElement('span'); check.className = 'history-check'; check.setAttribute('aria-hidden', 'true'); check.textContent = '✓';
       const label = document.createElement('span'); label.className = 'history-row-label'; label.textContent = `${Math.round(session.durationSeconds / 60)} min · ${session.taskTitle || 'Focus session'}`;
       const time = document.createElement('time'); time.className = 'history-time'; time.dateTime = new Date(session.completedAt).toISOString(); time.textContent = formatTime(session.completedAt);
-      li.append(check, label, time); el.historyList.append(li);
+      li.append(check, label, time); historyFragment.append(li);
     });
+    el.historyList.replaceChildren(historyFragment);
     const streak = effectiveStreak();
     el.streakCurrent.textContent = `${streak} Day Streak`;
     el.streakLongest.textContent = `${state.streak.longest} days`;
   }
   function renderTaskSelect() {
     const current = state.activeTaskId;
-    el.activeTaskSelect.replaceChildren();
-    const none = document.createElement('option'); none.value = ''; none.textContent = 'No task selected'; el.activeTaskSelect.append(none);
-    state.tasks.filter((task) => !task.done).forEach((task) => { const option = document.createElement('option'); option.value = task.id; option.textContent = task.title; el.activeTaskSelect.append(option); });
+    const options = document.createDocumentFragment();
+    const none = document.createElement('option'); none.value = ''; none.textContent = 'No task selected'; options.append(none);
+    state.tasks.filter((task) => !task.done).forEach((task) => { const option = document.createElement('option'); option.value = task.id; option.textContent = task.title; options.append(option); });
+    el.activeTaskSelect.replaceChildren(options);
     el.activeTaskSelect.value = current || '';
+  }
+  function renderFocusReminder() {
+    const active = state.tasks.find((task) => task.id === state.activeTaskId && !task.done);
+    el.taskReminder.textContent = active
+      ? `Linked task: ${active.title} · ${active.completedSessions}/${active.estimate} estimated sessions`
+      : state.taskNote
+        ? `Your focus note: ${state.taskNote}`
+        : 'Keep it small. Your only job is the next 25 minutes.';
   }
   function renderFocusTask() {
     const note = state.taskNote;
     if (el.taskInput.value !== note) el.taskInput.value = note;
     el.taskCount.textContent = `${note.length}/120`;
-    const active = state.tasks.find((task) => task.id === state.activeTaskId && !task.done);
-    el.taskReminder.textContent = active ? `Linked task: ${active.title} · ${active.completedSessions}/${active.estimate} estimated sessions` : note ? `Your focus note: ${note}` : 'Keep it small. Your only job is the next 25 minutes.';
+    renderFocusReminder();
   }
   function renderAll() {
-    el.todayLabel.textContent = formatDateLabel(new Date()); renderTimerUIAndAux(); renderStats(); renderTaskSelect(); renderFocusTask(); renderTasks(); renderSettings(); applyTheme(); updateStorageNote();
+    el.todayLabel.textContent = formatDateLabel(new Date()); renderTimerUIAndAux(); renderStats(); renderTasks(); renderSettings(); applyTheme(); updateStorageNote();
   }
   function renderTimerUIAndAux() { updateTimerUI(); }
   function completeFocusSession(completedAt) {
@@ -404,7 +458,7 @@
     lastRenderedDay = today;
     el.todayLabel.textContent = formatDateLabel(new Date());
     renderStats();
-    if (!$('view-progress').hidden) renderAnalytics();
+    if (!progressView.hidden) renderAnalytics();
   }
   function timerTick() {
     refreshLocalDay();
@@ -414,7 +468,7 @@
     if (remaining <= 0) { if (timer.mode === 'focus') completeFocusSession(timer.endAt); else completeBreak(); return; }
     timer.remainingSeconds = remaining; updateTimerUI();
   }
-  function startTicker() { stopTicker(); timerTick(); if (state.timer.status === 'running') ticker = window.setInterval(timerTick, 250); }
+  function startTicker() { stopTicker(); timerTick(); if (state.timer.status === 'running') ticker = window.setInterval(timerTick, 1000); }
   function startTimer() {
     unlockAudio();
     const timer = state.timer;
@@ -488,11 +542,14 @@
     const active = state.tasks.filter((task) => !task.done).sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.priority] - { high: 0, medium: 1, low: 2 }[b.priority]) || a.createdAt - b.createdAt);
     const completed = state.tasks.filter((task) => task.done).sort((a, b) => b.createdAt - a.createdAt);
     el.activeTaskCount.textContent = active.length; el.completedTaskCount.textContent = completed.length;
-    el.activeTaskList.replaceChildren(); el.completedTaskList.replaceChildren();
-    if (!active.length) el.activeTaskList.append(emptyState('A clear space to begin', 'Add a small task above. You can link it to a focus session when you are ready.', '＋'));
-    else active.forEach((task) => el.activeTaskList.append(createTaskCard(task)));
-    if (!completed.length) el.completedTaskList.append(emptyState('Nothing completed yet', 'Finished tasks will settle here. Progress can be quiet and still count.', '✓'));
-    else completed.forEach((task) => el.completedTaskList.append(createTaskCard(task, true)));
+    const activeFragment = document.createDocumentFragment();
+    const completedFragment = document.createDocumentFragment();
+    if (!active.length) activeFragment.append(emptyState('A clear space to begin', 'Add a small task above. You can link it to a focus session when you are ready.', '＋'));
+    else active.forEach((task) => activeFragment.append(createTaskCard(task)));
+    if (!completed.length) completedFragment.append(emptyState('Nothing completed yet', 'Finished tasks will settle here. Progress can be quiet and still count.', '✓'));
+    else completed.forEach((task) => completedFragment.append(createTaskCard(task, true)));
+    el.activeTaskList.replaceChildren(activeFragment);
+    el.completedTaskList.replaceChildren(completedFragment);
     renderTaskSelect(); renderFocusTask();
   }
   function resetTaskForm() { editTaskId = null; el.taskForm.reset(); el.taskEstimate.value = '2'; el.taskPriority.value = 'medium'; el.taskFormTitle.textContent = 'Add a task'; el.saveTaskButton.textContent = 'Save task'; el.cancelEdit.hidden = true; }
@@ -507,7 +564,7 @@
     } else {
       const task = { id: makeId(), title, estimate, completedSessions: 0, priority, done: false, createdAt: Date.now() }; state.tasks.unshift(task); state.activeTaskId = task.id; toast('Task locked in!', 'success');
     }
-    persist(); resetTaskForm(); renderTasks(); renderTaskSelect(); renderFocusTask();
+    persist(); resetTaskForm(); renderTasks();
   }
   function selectTask(id) { const task = state.tasks.find((item) => item.id === id && !item.done); if (!task) return; state.activeTaskId = id; persist(); renderTasks(); renderStats(); toast(`“${task.title}” linked to your timer.`, 'success'); }
   function completeTask(id) { const task = state.tasks.find((item) => item.id === id); if (!task) return; task.done = true; if (state.activeTaskId === id) state.activeTaskId = null; persist(); renderTasks(); toast('Task marked complete.', 'success'); }
@@ -525,7 +582,7 @@
 
   // ---------- Progress / lightweight Canvas chart ----------
   function renderAnalytics() {
-    document.querySelectorAll('[data-range]').forEach((button) => { const active = Number(button.dataset.range) === chartRange; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
+    rangeButtons.forEach((button) => { const active = Number(button.dataset.range) === chartRange; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
     const totalMinutes = state.sessions.reduce((sum, session) => sum + Math.round(session.durationSeconds / 60), 0);
     el.alltimeMinutes.textContent = String(totalMinutes); el.alltimeSessions.textContent = String(state.sessions.length);
     el.analyticsStreak.textContent = String(effectiveStreak()); el.analyticsLongest.textContent = String(state.streak.longest);
@@ -538,16 +595,25 @@
   }
   function drawChart() {
     const canvas = el.chart; const rect = canvas.getBoundingClientRect(); if (!rect.width) return;
-    const width = Math.max(280, rect.width); const height = rect.height || 260; const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
-    const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, width, height);
+    const width = Math.max(1, rect.width); const height = rect.height || 260; const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelWidth = Math.round(width * dpr); const pixelHeight = Math.round(height * dpr);
+    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+    const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
     const today = dateFromKey(localDateKey());
+    const firstDate = new Date(today); firstDate.setDate(today.getDate() - (chartRange - 1));
+    const firstKey = localDateKey(firstDate.getTime()); const todayKey = localDateKey(today.getTime());
+    const dailyTotals = new Map();
+    state.sessions.forEach((session) => {
+      const key = localDateKey(session.completedAt);
+      if (key >= firstKey && key <= todayKey) dailyTotals.set(key, (dailyTotals.get(key) || 0) + Math.round(session.durationSeconds / 60));
+    });
+    const weekdayFormatter = chartRange === 7 ? new Intl.DateTimeFormat(undefined, { weekday: 'short' }) : null;
     const points = [];
     for (let index = chartRange - 1; index >= 0; index--) {
       const date = new Date(today); date.setDate(today.getDate() - index);
       const key = localDateKey(date.getTime());
-      const minutes = state.sessions.filter((session) => localDateKey(session.completedAt) === key).reduce((sum, session) => sum + Math.round(session.durationSeconds / 60), 0);
-      points.push({ date, minutes });
+      points.push({ date, minutes: dailyTotals.get(key) || 0 });
     }
     const total = points.reduce((sum, point) => sum + point.minutes, 0); el.chartTotal.textContent = `${total} minute${total === 1 ? '' : 's'} in this period`;
     const pad = { left: 34, right: 12, top: 18, bottom: 34 }; const plotW = width - pad.left - pad.right; const plotH = height - pad.top - pad.bottom;
@@ -559,26 +625,44 @@
       ctx.textAlign = 'right'; ctx.fillText(String(Math.round(max * (1 - line / 4))), pad.left - 8, y);
     }
     const slot = plotW / points.length; const barW = Math.max(3, Math.min(chartRange === 7 ? 25 : 12, slot * .55));
+    const themeStyles = getComputedStyle(document.body);
+    const accent2 = themeStyles.getPropertyValue('--accent-2').trim() || '#22d3ee';
+    const accent = themeStyles.getPropertyValue('--accent').trim() || '#7c5cff';
     points.forEach((point, index) => {
       const x = pad.left + slot * index + (slot - barW) / 2; const barH = point.minutes ? Math.max(3, plotH * point.minutes / max) : 0; const y = pad.top + plotH - barH;
-      if (barH) { const gradient = ctx.createLinearGradient(0, y, 0, pad.top + plotH); gradient.addColorStop(0, getComputedStyle(document.body).getPropertyValue('--accent-2').trim() || '#22d3ee'); gradient.addColorStop(1, getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#7c5cff'); ctx.fillStyle = gradient; roundRect(ctx, x, y, barW, barH, Math.min(6, barW / 2)); }
+      if (barH) { const gradient = ctx.createLinearGradient(0, y, 0, pad.top + plotH); gradient.addColorStop(0, accent2); gradient.addColorStop(1, accent); ctx.fillStyle = gradient; roundRect(ctx, x, y, barW, barH, Math.min(6, barW / 2)); }
       ctx.fillStyle = '#77849b'; ctx.textAlign = 'center';
-      const label = chartRange === 7 ? new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(point.date) : (index % 5 === 0 || index === points.length - 1 ? String(point.date.getDate()) : '');
+      const label = chartRange === 7 ? weekdayFormatter.format(point.date) : (index % 5 === 0 || index === points.length - 1 ? String(point.date.getDate()) : '');
       ctx.fillText(label, x + barW / 2, height - 13);
     });
     if (total === 0) { ctx.fillStyle = '#8793aa'; ctx.textAlign = 'center'; ctx.font = '11px Manrope, sans-serif'; ctx.fillText('No focus data in this period yet', width / 2, height / 2); }
   }
   function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); ctx.fill(); }
-  document.querySelectorAll('[data-range]').forEach((button) => button.addEventListener('click', () => { chartRange = Number(button.dataset.range) === 30 ? 30 : 7; state.preferences.chartRange = chartRange; persist(); document.querySelectorAll('[data-range]').forEach((item) => { const active = item === button; item.classList.toggle('active', active); item.setAttribute('aria-pressed', String(active)); }); drawChart(); }));
-  if ('ResizeObserver' in window) { chartResizeObserver = new ResizeObserver(() => { if (!$('view-progress').hidden) drawChart(); }); chartResizeObserver.observe($('view-progress')); }
-  else window.addEventListener('resize', () => { if (!$('view-progress').hidden) drawChart(); });
+  let chartDrawFrame = 0;
+  function scheduleChartDraw() {
+    if (progressView.hidden || chartDrawFrame) return;
+    chartDrawFrame = window.requestAnimationFrame(() => {
+      chartDrawFrame = 0;
+      if (!progressView.hidden) drawChart();
+    });
+  }
+  rangeButtons.forEach((button) => button.addEventListener('click', () => {
+    chartRange = Number(button.dataset.range) === 30 ? 30 : 7;
+    state.preferences.chartRange = chartRange; persist();
+    rangeButtons.forEach((item) => { const active = item === button; item.classList.toggle('active', active); item.setAttribute('aria-pressed', String(active)); });
+    scheduleChartDraw();
+  }));
+  if ('ResizeObserver' in window) {
+    chartResizeObserver = new ResizeObserver(scheduleChartDraw);
+    chartResizeObserver.observe(progressView);
+  } else window.addEventListener('resize', scheduleChartDraw, { passive: true });
 
   // ---------- Preferences, themes and ambient controls ----------
-  function applyTheme() { document.body.dataset.theme = state.preferences.theme; document.querySelector('meta[name="theme-color"]').content = '#070a12'; }
+  function applyTheme() { document.body.dataset.theme = state.preferences.theme; if (themeColorMeta) themeColorMeta.content = '#070a12'; }
   function renderSettings() {
     el.alertsToggle.checked = state.preferences.alertsEnabled; el.alertVolume.value = state.preferences.alertVolume; el.alertVolumeValue.value = `${state.preferences.alertVolume}%`; el.alertVolumeValue.textContent = `${state.preferences.alertVolume}%`;
     el.ambientToggle.checked = state.preferences.ambientEnabled; el.ambientType.value = state.preferences.ambientType; el.ambientVolume.value = state.preferences.ambientVolume; el.ambientVolumeValue.value = `${state.preferences.ambientVolume}%`; el.ambientVolumeValue.textContent = `${state.preferences.ambientVolume}%`;
-    document.querySelectorAll('input[name="theme"]').forEach((radio) => { radio.checked = radio.value === state.preferences.theme; });
+    themeRadios.forEach((radio) => { radio.checked = radio.value === state.preferences.theme; });
   }
   function savePreferences() { persist(); applyTheme(); renderSettings(); updateAmbientGain(); }
   function openSettings() { renderSettings(); if (typeof el.settingsDialog.showModal === 'function') el.settingsDialog.showModal(); else toast('Settings dialog is not supported in this browser.', 'warning'); }
@@ -586,11 +670,13 @@
   el.settingsButton.addEventListener('click', openSettings); el.closeSettings.addEventListener('click', closeSettings); el.settingsDone.addEventListener('click', closeSettings);
   el.settingsDialog.addEventListener('click', (event) => { if (event.target === el.settingsDialog) closeSettings(); });
   el.alertsToggle.addEventListener('change', () => { state.preferences.alertsEnabled = el.alertsToggle.checked; savePreferences(); toast(state.preferences.alertsEnabled ? 'Voice alerts enabled.' : 'Voice alerts muted.', 'info'); });
-  el.alertVolume.addEventListener('input', () => { state.preferences.alertVolume = clamp(el.alertVolume.value, 0, 100, 55); el.alertVolumeValue.textContent = `${state.preferences.alertVolume}%`; persist(); });
+  el.alertVolume.addEventListener('input', () => { state.preferences.alertVolume = clamp(el.alertVolume.value, 0, 100, 55); el.alertVolumeValue.textContent = `${state.preferences.alertVolume}%`; savePreferencesDebounced(); });
+  el.alertVolume.addEventListener('change', () => savePreferencesDebounced.flush());
   el.ambientToggle.addEventListener('change', () => { state.preferences.ambientEnabled = el.ambientToggle.checked; savePreferences(); if (state.preferences.ambientEnabled) { unlockAudio(); startAmbient(); toast('Ambient sound enabled.', 'success'); } else { stopAmbient(); toast('Ambient sound off.', 'info'); } });
   el.ambientType.addEventListener('change', () => { state.preferences.ambientType = el.ambientType.value; persist(); restartAmbient(); });
-  el.ambientVolume.addEventListener('input', () => { state.preferences.ambientVolume = clamp(el.ambientVolume.value, 0, 100, 28); el.ambientVolumeValue.textContent = `${state.preferences.ambientVolume}%`; persist(); updateAmbientGain(); });
-  document.querySelectorAll('input[name="theme"]').forEach((radio) => radio.addEventListener('change', () => { state.preferences.theme = radio.value; savePreferences(); toast(`Theme changed to ${radio.parentElement.querySelector('span:last-child').textContent}.`, 'success'); }));
+  el.ambientVolume.addEventListener('input', () => { state.preferences.ambientVolume = clamp(el.ambientVolume.value, 0, 100, 28); el.ambientVolumeValue.textContent = `${state.preferences.ambientVolume}%`; savePreferencesDebounced(); updateAmbientGain(); });
+  el.ambientVolume.addEventListener('change', () => savePreferencesDebounced.flush());
+  themeRadios.forEach((radio) => radio.addEventListener('change', () => { state.preferences.theme = radio.value; savePreferences(); toast(`Theme changed to ${radio.parentElement.querySelector('span:last-child').textContent}.`, 'success'); }));
 
   // ---------- Welcome / onboarding ----------
   function markOnboarded() { try { localStorage.setItem(KEYS.onboarded, 'yes'); } catch (error) { storageAvailable = false; } }
@@ -604,19 +690,45 @@
   el.helpButton.addEventListener('click', () => showWelcome(true));
 
   // ---------- Existing focus note and UI events ----------
-  function saveFocusNote() { state.taskNote = text(el.taskInput.value, 120); persist(); renderFocusTask(); el.taskSaveStatus.textContent = 'Saved on this device'; toast('Task locked in!', 'success'); }
-  el.taskInput.addEventListener('input', () => { state.taskNote = text(el.taskInput.value, 120); persist(); renderFocusTask(); el.taskSaveStatus.textContent = 'Saved on this device'; });
-  el.taskInput.addEventListener('change', () => { toast('Task locked in!', 'success'); });
-  el.clearTask.addEventListener('click', () => { el.taskInput.value = ''; state.taskNote = ''; persist(); renderFocusTask(); el.taskInput.focus(); toast('Focus note cleared.', 'info'); });
-  el.activeTaskSelect.addEventListener('change', () => { const id = el.activeTaskSelect.value || null; state.activeTaskId = id; persist(); renderTasks(); renderFocusTask(); const task = state.tasks.find((item) => item.id === id); if (task) toast(`“${task.title}” linked to your timer.`, 'success'); });
+  function saveFocusNote(showToast = false) {
+    saveFocusNoteDebounced.cancel();
+    state.taskNote = text(el.taskInput.value, 120);
+    persist(); renderFocusTask();
+    el.taskSaveStatus.textContent = 'Saved on this device';
+    if (showToast) toast('Task locked in!', 'success');
+  }
+  el.taskInput.addEventListener('input', () => {
+    state.taskNote = el.taskInput.value.slice(0, 120);
+    el.taskCount.textContent = `${el.taskInput.value.length}/120`;
+    el.taskSaveStatus.textContent = 'Saving…';
+    renderFocusReminder();
+    saveFocusNoteDebounced();
+  });
+  el.taskInput.addEventListener('change', () => saveFocusNote(true));
+  el.clearTask.addEventListener('click', () => { saveFocusNoteDebounced.cancel(); el.taskInput.value = ''; state.taskNote = ''; persist(); renderFocusTask(); el.taskInput.focus(); toast('Focus note cleared.', 'info'); });
+  el.activeTaskSelect.addEventListener('change', () => { const id = el.activeTaskSelect.value || null; state.activeTaskId = id; persist(); renderTasks(); const task = state.tasks.find((item) => item.id === id); if (task) toast(`“${task.title}” linked to your timer.`, 'success'); });
   el.start.addEventListener('click', startTimer); el.pause.addEventListener('click', pauseTimer); el.reset.addEventListener('click', resetTimer); el.anotherSession.addEventListener('click', () => { resetTimer(); startTimer(); });
   el.startBreak.addEventListener('click', beginBreak); el.skipBreak.addEventListener('click', skipBreak);
   document.addEventListener('pointerdown', unlockAudio, { once: true }); document.addEventListener('keydown', unlockAudio, { once: true });
 
   // Handle a page sleeping, refreshing, or crossing a local date boundary.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { timerTick(); refreshLocalDay(); renderStats(); renderTaskSelect(); } });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopTicker();
+      saveFocusNoteDebounced.flush();
+      savePreferencesDebounced.flush();
+      return;
+    }
+    timerTick();
+    if (state.timer.status === 'running' && ticker === null) startTicker();
+    refreshLocalDay(); renderStats(); renderTaskSelect();
+  });
   window.setInterval(refreshLocalDay, 60000);
-  window.addEventListener('pagehide', () => persist());
+  window.addEventListener('pagehide', () => {
+    saveFocusNoteDebounced.flush();
+    savePreferencesDebounced.flush();
+    persist();
+  });
   window.addEventListener('pageshow', () => { if (state.timer.status === 'running') { timerTick(); if (state.timer.status === 'running' && ticker === null) startTicker(); } renderStats(); });
   window.addEventListener('storage', (event) => { if (event.key === KEYS.state && event.newValue) { try { state = normalizeState(JSON.parse(event.newValue)); renderAll(); } catch (error) { toast('Could not sync changes from another tab.', 'warning'); } } });
 
