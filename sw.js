@@ -1,5 +1,5 @@
 /* Optional offline shell cache. App data remains in LocalStorage. */
-const CACHE_NAME = 'studypulse-shell-v1-1';
+const CACHE_NAME = 'studypulse-shell-v1-2';
 const APP_SHELL = ['./', './index.html', './style.css', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
