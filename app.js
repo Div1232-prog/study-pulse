@@ -732,10 +732,22 @@
   window.addEventListener('pageshow', () => { if (state.timer.status === 'running') { timerTick(); if (state.timer.status === 'running' && ticker === null) startTicker(); } renderStats(); });
   window.addEventListener('storage', (event) => { if (event.key === KEYS.state && event.newValue) { try { state = normalizeState(JSON.parse(event.newValue)); renderAll(); } catch (error) { toast('Could not sync changes from another tab.', 'warning'); } } });
 
-  // Register the optional offline app shell when served from HTTPS or localhost.
-  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}), { once: true });
-  }
+  if (
+  'serviceWorker' in navigator &&
+  (location.protocol === 'https:' ||
+   location.hostname === 'localhost' ||
+   location.hostname === '127.0.0.1')
+) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+      updateViaCache: 'none'
+    }).catch((error) => {
+      console.warn('StudyPulse: Service Worker registration failed.', error);
+    });
+  }, { once: true });
+}
+
 
   // Restore any running timer from its saved end timestamp.
   renderAll();
