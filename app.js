@@ -2,7 +2,12 @@
 
 /* StudyPulse v1.1 — local-first focus cockpit. No backend or third-party JS. */
 (() => {
-  const KEYS = { state: 'focusdeck.v1.1.state', legacy: 'focusdeck.v1.state', onboarded: 'focusdeck.v1.1.onboarded' };
+  const KEYS = {
+    state: 'focusdeck.v1.1.state',
+    legacy: 'focusdeck.v1.state',
+    onboarded: 'focusdeck.v1.1.onboarded',
+    recovery: 'focusdeck.v1.1.state.recovery'
+  };
   const DURATIONS = { focus: 25 * 60, break: 5 * 60 };
   const CIRCUMFERENCE = 2 * Math.PI * 124;
   const MAX_SESSIONS = 2000;
@@ -34,7 +39,16 @@
   const progressView = $('view-progress');
   const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 
-  let storageAvailable = true;
+  const storage = (() => {
+    try { return window.localStorage; }
+    catch (error) { return null; }
+  })();
+  let storageAvailable = Boolean(storage);
+  let storageCorruptedRaw = null;
+  let storageRecoveryPreserved = false;
+  let storageLegacyPreserved = false;
+  let lastKnownStateRaw = null;
+  let lastStorageNote = '';
   let ticker = null;
   let editTaskId = null;
   let chartRange = 7;
@@ -49,6 +63,7 @@
 
   const defaultState = () => ({
     version: 2,
+    revision: 0,
     timer: { mode: 'focus', durationSeconds: DURATIONS.focus, remainingSeconds: DURATIONS.focus, status: 'idle', endAt: null, sessionId: null, linkedTaskId: null, linkedTaskTitle: '' },
     taskNote: '', tasks: [], activeTaskId: null, sessions: [],
     streak: { lastFocusDate: null, current: 0, longest: 0 },
@@ -61,8 +76,10 @@
 
   function normalizeSession(session) {
     if (!session || !Number.isFinite(Number(session.completedAt))) return null;
+    const completedAt = Number(session.completedAt);
+    if (completedAt <= 0 || !Number.isFinite(new Date(completedAt).getTime())) return null;
     return {
-      id: text(session.id, 100) || makeId(), completedAt: Number(session.completedAt),
+      id: text(session.id, 100) || makeId(), completedAt,
       durationSeconds: clamp(session.durationSeconds, 1, DURATIONS.focus, DURATIONS.focus),
       taskId: text(session.taskId, 100) || null, taskTitle: text(session.taskTitle, 120), mode: 'focus'
     };
@@ -71,6 +88,7 @@
   function normalizeState(saved) {
     const state = defaultState();
     if (!saved || typeof saved !== 'object') return state;
+    state.revision = clamp(saved.revision, 0, Number.MAX_SAFE_INTEGER, 0);
     const timer = saved.timer && typeof saved.timer === 'object' ? saved.timer : saved;
     const mode = ['focus', 'break'].includes(timer.mode) ? timer.mode : 'focus';
     const duration = mode === 'break' ? DURATIONS.break : DURATIONS.focus;
@@ -78,31 +96,47 @@
       mode, durationSeconds: duration,
       remainingSeconds: clamp(timer.remainingSeconds, 0, duration, duration),
       status: ['idle', 'running', 'paused', 'completed'].includes(timer.status) ? timer.status : 'idle',
-      endAt: Number.isFinite(Number(timer.endAt)) && timer.endAt !== null ? Number(timer.endAt) : null,
+      endAt: timer.endAt !== null && timer.endAt !== undefined && Number.isFinite(Number(timer.endAt)) && Number(timer.endAt) > 0 ? Number(timer.endAt) : null,
       sessionId: typeof timer.sessionId === 'string' ? timer.sessionId.slice(0, 100) : null,
       linkedTaskId: typeof timer.linkedTaskId === 'string' ? timer.linkedTaskId.slice(0, 100) : null,
       linkedTaskTitle: text(timer.linkedTaskTitle, 120)
     };
+    if (mode === 'break' && state.timer.status === 'completed') {
+      state.timer = { mode: 'focus', durationSeconds: DURATIONS.focus, remainingSeconds: DURATIONS.focus, status: 'idle', endAt: null, sessionId: null, linkedTaskId: null, linkedTaskTitle: '' };
+    }
     if (state.timer.status === 'running' && (!state.timer.endAt || (mode === 'focus' && !state.timer.sessionId))) {
       state.timer.status = 'paused'; state.timer.endAt = null;
     }
     if (state.timer.status !== 'running') state.timer.endAt = null;
     if (state.timer.status === 'completed') state.timer.remainingSeconds = 0;
     state.taskNote = text(saved.taskNote !== undefined ? saved.taskNote : saved.task, 120);
+    const taskIds = new Set();
     state.tasks = Array.isArray(saved.tasks) ? saved.tasks.map((task) => {
       if (!task || typeof task !== 'object') return null;
+      let id = text(task.id, 100) || makeId();
+      while (taskIds.has(id)) id = makeId();
+      taskIds.add(id);
       return {
-        id: text(task.id, 100) || makeId(), title: text(task.title, 120),
+        id, title: text(task.title, 120),
         estimate: clamp(task.estimate, 1, 50, 2), completedSessions: clamp(task.completedSessions, 0, 9999, 0),
-        priority: ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium', done: Boolean(task.done), createdAt: Number(task.createdAt) || Date.now()
+        priority: ['low', 'medium', 'high'].includes(task.priority) ? task.priority : 'medium', done: Boolean(task.done),
+        createdAt: Number.isFinite(Number(task.createdAt)) && Number(task.createdAt) > 0 ? Number(task.createdAt) : Date.now()
       };
     }).filter((task) => task && task.title) : [];
     state.activeTaskId = text(saved.activeTaskId, 100) || null;
     if (!state.tasks.some((task) => task.id === state.activeTaskId && !task.done)) state.activeTaskId = null;
-    state.sessions = Array.isArray(saved.sessions) ? saved.sessions.map(normalizeSession).filter(Boolean).sort((a, b) => b.completedAt - a.completedAt).slice(0, MAX_SESSIONS) : [];
+    const sessionIds = new Set();
+    state.sessions = Array.isArray(saved.sessions) ? saved.sessions.map(normalizeSession).filter((session) => {
+      if (!session || sessionIds.has(session.id)) return false;
+      sessionIds.add(session.id);
+      return true;
+    }).sort((a, b) => b.completedAt - a.completedAt).slice(0, MAX_SESSIONS) : [];
+    if (state.timer.linkedTaskId && !state.tasks.some((task) => task.id === state.timer.linkedTaskId)) {
+      state.timer.linkedTaskId = null;
+    }
     const streak = saved.streak && typeof saved.streak === 'object' ? saved.streak : {};
     state.streak = {
-      lastFocusDate: /^\d{4}-\d{2}-\d{2}$/.test(streak.lastFocusDate || '') ? streak.lastFocusDate : null,
+      lastFocusDate: isValidDateKey(streak.lastFocusDate) ? streak.lastFocusDate : null,
       current: clamp(streak.current, 0, 9999, 0), longest: clamp(streak.longest, 0, 9999, 0)
     };
     const prefs = saved.preferences && typeof saved.preferences === 'object' ? saved.preferences : {};
@@ -119,6 +153,21 @@
     return state;
   }
 
+
+  function needsRecoveryCopy(saved, normalized) {
+    if (Array.isArray(saved.tasks)) {
+      if (normalized.tasks.length !== saved.tasks.length) return true;
+      const taskIds = new Set();
+      for (const task of saved.tasks) {
+        const id = task && typeof task === 'object' ? text(task.id, 100) : '';
+        if (id && taskIds.has(id)) return true;
+        if (id) taskIds.add(id);
+      }
+    }
+    if (Array.isArray(saved.sessions) && normalized.sessions.length !== saved.sessions.length) return true;
+    return false;
+  }
+
   function rebuildStreak(target) {
     const days = [...new Set(target.sessions.map((session) => localDateKey(session.completedAt)))].sort();
     let current = 0; let longest = 0; let previous = null;
@@ -131,18 +180,37 @@
   }
 
   function loadState() {
+    if (!storage) {
+      storageAvailable = false;
+      return defaultState();
+    }
     try {
-      const current = localStorage.getItem(KEYS.state);
-      if (current) return normalizeState(JSON.parse(current));
-      const legacy = localStorage.getItem(KEYS.legacy);
-      if (legacy) {
-        const old = JSON.parse(legacy);
-        const migrated = normalizeState({ ...old, taskNote: old.task || '', timer: {
-          mode: 'focus', durationSeconds: DURATIONS.focus, remainingSeconds: old.remainingSeconds,
-          status: old.status, endAt: old.endAt, sessionId: old.sessionId, linkedTaskId: null, linkedTaskTitle: ''
-        }});
-        persist(migrated);
-        return migrated;
+      const current = storage.getItem(KEYS.state);
+      lastKnownStateRaw = current;
+      if (current !== null) {
+        try {
+          const parsed = JSON.parse(current);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new TypeError('Saved state must be an object.');
+          const normalized = normalizeState(parsed);
+          if (needsRecoveryCopy(parsed, normalized)) storageCorruptedRaw = current;
+          return normalized;
+        } catch (error) { storageCorruptedRaw = current; }
+      }
+      const legacy = storage.getItem(KEYS.legacy);
+      if (legacy !== null) {
+        try {
+          const old = JSON.parse(legacy);
+          if (!old || typeof old !== 'object' || Array.isArray(old)) throw new TypeError('Legacy save must be an object.');
+          const migrated = normalizeState({ ...old, taskNote: old.task || '', timer: {
+            mode: 'focus', durationSeconds: DURATIONS.focus, remainingSeconds: old.remainingSeconds,
+            status: old.status, endAt: old.endAt, sessionId: old.sessionId, linkedTaskId: null, linkedTaskTitle: ''
+          }});
+          persist(migrated);
+          return migrated;
+        } catch (error) {
+          // Keep the legacy value untouched; malformed data is never silently deleted.
+          storageLegacyPreserved = true;
+        }
       }
       return defaultState();
     } catch (error) {
@@ -151,22 +219,48 @@
     }
   }
 
-  let state = loadState();
+  let state = defaultState();
+  state = loadState();
   chartRange = state.preferences.chartRange;
 
   function persist(value = state) {
-    try { localStorage.setItem(KEYS.state, JSON.stringify(value)); storageAvailable = true; }
-    catch (error) { storageAvailable = false; }
+    try {
+      if (!storage) throw new Error('Local storage is unavailable.');
+      const currentRaw = storage.getItem(KEYS.state);
+      if (currentRaw !== lastKnownStateRaw) {
+        adoptStoredState(currentRaw, true);
+        return false;
+      }
+      if (storageCorruptedRaw !== null) {
+        const recoveryKey = storage.getItem(KEYS.recovery) === null ? KEYS.recovery : `${KEYS.recovery}.${Date.now()}`;
+        storage.setItem(recoveryKey, storageCorruptedRaw);
+        storageCorruptedRaw = null;
+        storageRecoveryPreserved = true;
+      }
+      value.revision = Math.max(Date.now(), (Number(value.revision) || 0) + 1);
+      const serialized = JSON.stringify(value);
+      storage.setItem(KEYS.state, serialized);
+      lastKnownStateRaw = serialized;
+      storageAvailable = true;
+    } catch (error) { storageAvailable = false; }
     updateStorageNote();
+    return true;
   }
-  let lastStorageNote = '';
   function updateStorageNote() {
-    const message = storageAvailable ? 'Your focus data stays on this device.' : 'Browser storage is unavailable. Your progress may not survive a refresh.';
+    const message = !storageAvailable
+      ? 'Browser storage is unavailable. Your progress may not survive a refresh.'
+      : storageCorruptedRaw !== null
+        ? 'A previous save needs repair. Its original data will be preserved before changes are saved.'
+        : storageRecoveryPreserved
+          ? 'A recovery copy of the previous save was kept on this device.'
+          : storageLegacyPreserved
+            ? 'An unreadable legacy save was left untouched; it was not migrated.'
+            : 'Your focus data stays on this device.';
     if (message !== lastStorageNote) {
       el.storageNote.textContent = message;
       lastStorageNote = message;
     }
-    el.storageNote.classList.toggle('storage-warning', !storageAvailable);
+    el.storageNote.classList.toggle('storage-warning', !storageAvailable || storageCorruptedRaw !== null || storageLegacyPreserved);
   }
 
   function debounce(fn, delay = 240) {
@@ -192,14 +286,19 @@
   }
 
   const saveFocusNoteDebounced = debounce(() => {
-    persist();
-    el.taskSaveStatus.textContent = 'Saved on this device';
+    if (persist()) el.taskSaveStatus.textContent = storageAvailable ? 'Saved on this device' : 'Not saved — storage unavailable';
   }, 260);
   const savePreferencesDebounced = debounce(() => persist(), 260);
 
   function localDateKey(timestamp = Date.now()) {
     const date = new Date(timestamp);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+  function isValidDateKey(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
   }
   function dayOrdinal(dateKey) {
     const [year, month, day] = dateKey.split('-').map(Number);
@@ -212,14 +311,17 @@
   function effectiveStreak() {
     if (!state.streak.lastFocusDate) return 0;
     const gap = dayOrdinal(localDateKey()) - dayOrdinal(state.streak.lastFocusDate);
-    return gap <= 1 ? state.streak.current : 0;
+    return gap >= 0 && gap <= 1 ? state.streak.current : 0;
   }
   function bumpStreak(completedAt) {
     const day = localDateKey(completedAt);
     const last = state.streak.lastFocusDate;
     if (last === day) return false;
     const gap = last ? dayOrdinal(day) - dayOrdinal(last) : 0;
-    state.streak.current = !last || gap > 1 || gap < 0 ? 1 : state.streak.current + 1;
+    // Historical sessions may be added later, but must never move the latest
+    // activity date or current streak backwards.
+    if (last && gap < 0) return false;
+    state.streak.current = !last || gap > 1 ? 1 : state.streak.current + 1;
     state.streak.lastFocusDate = day;
     state.streak.longest = Math.max(state.streak.longest, state.streak.current);
     return true;
@@ -245,7 +347,10 @@
   function getAudioContext() {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return null;
-    if (!audioContext) audioContext = new Ctx();
+    if (!audioContext) {
+      try { audioContext = new Ctx(); }
+      catch (error) { audioContext = null; }
+    }
     return audioContext;
   }
   function unlockAudio() {
@@ -253,20 +358,23 @@
     audioUnlocked = true;
     const ctx = getAudioContext();
     if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
-    if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
+    try { window.speechSynthesis?.getVoices?.(); } catch (error) { /* voice discovery is optional */ }
     if (state.preferences.ambientEnabled) startAmbient();
   }
   function playTone(frequency = 660, duration = .16, volumeScale = 1) {
     if (!state.preferences.alertsEnabled || state.preferences.alertVolume <= 0) return;
     const ctx = getAudioContext(); if (!ctx) return;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    const oscillator = ctx.createOscillator(); const gain = ctx.createGain();
-    oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
-    const volume = (state.preferences.alertVolume / 100) * .075 * volumeScale;
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(Math.max(.0002, volume), ctx.currentTime + .025);
-    gain.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + duration);
-    oscillator.connect(gain).connect(ctx.destination); oscillator.start(); oscillator.stop(ctx.currentTime + duration + .03);
+    try {
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      const oscillator = ctx.createOscillator(); const gain = ctx.createGain();
+      oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
+      const volume = (state.preferences.alertVolume / 100) * .075 * volumeScale;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0002, volume), ctx.currentTime + .025);
+      gain.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + duration);
+      oscillator.connect(gain).connect(ctx.destination); oscillator.start(); oscillator.stop(ctx.currentTime + duration + .03);
+      oscillator.addEventListener('ended', () => { try { oscillator.disconnect(); gain.disconnect(); } catch (error) { /* already disconnected */ } }, { once: true });
+    } catch (error) { /* audio is optional; a browser audio failure must not interrupt the timer */ }
   }
   function announce(message, frequency = 660) {
     if (!state.preferences.alertsEnabled) return;
@@ -286,40 +394,53 @@
     if (!ambientGraph) return;
     try { ambientGraph.source.stop(); } catch (error) { /* already stopped */ }
     try { ambientGraph.lfo?.stop(); } catch (error) { /* optional oscillator */ }
+    [ambientGraph.source, ambientGraph.filter, ambientGraph.gain, ambientGraph.lfo, ambientGraph.lfoGain].forEach((node) => {
+      try { node?.disconnect(); } catch (error) { /* already disconnected */ }
+    });
     ambientGraph = null;
   }
   function startAmbient() {
     if (!state.preferences.ambientEnabled || ambientGraph) return;
     const ctx = getAudioContext(); if (!ctx) { toast('Ambient audio is not supported in this browser.', 'warning'); return; }
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-    const length = Math.floor(ctx.sampleRate * 2.5); const buffer = ctx.createBuffer(1, length, ctx.sampleRate); const data = buffer.getChannelData(0);
-    let brown = 0;
-    for (let i = 0; i < length; i++) {
-      const white = Math.random() * 2 - 1;
-      brown = (brown + .02 * white) / 1.02;
-      data[i] = state.preferences.ambientType === 'white' ? white * .45 : (brown * 3.2 + white * .08);
+    let source = null; let filter = null; let gain = null; let lfo = null; let lfoGain = null;
+    try {
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      const length = Math.floor(ctx.sampleRate * 2.5); const buffer = ctx.createBuffer(1, length, ctx.sampleRate); const data = buffer.getChannelData(0);
+      let brown = 0;
+      for (let i = 0; i < length; i++) {
+        const white = Math.random() * 2 - 1;
+        brown = (brown + .02 * white) / 1.02;
+        data[i] = state.preferences.ambientType === 'white' ? white * .45 : (brown * 3.2 + white * .08);
+      }
+      source = ctx.createBufferSource(); source.buffer = buffer; source.loop = true;
+      filter = ctx.createBiquadFilter();
+      const type = state.preferences.ambientType;
+      filter.type = type === 'white' ? 'highpass' : type === 'cafe' ? 'bandpass' : 'lowpass';
+      filter.frequency.value = type === 'white' ? 950 : type === 'cafe' ? 850 : 1250;
+      filter.Q.value = type === 'cafe' ? .75 : .45;
+      gain = ctx.createGain(); gain.gain.value = 0.0001;
+      source.connect(filter).connect(gain).connect(ctx.destination); source.start();
+      if (type === 'cafe') {
+        lfo = ctx.createOscillator(); lfoGain = ctx.createGain(); lfo.frequency.value = .16; lfoGain.gain.value = .0008;
+        lfo.connect(lfoGain).connect(gain.gain); lfo.start();
+      }
+      ambientGraph = { source, filter, gain, lfo, lfoGain };
+      updateAmbientGain();
+    } catch (error) {
+      try { source?.stop(); } catch (stopError) { /* source may not have started */ }
+      [source, filter, gain, lfo, lfoGain].forEach((node) => {
+        try { node?.disconnect(); } catch (disconnectError) { /* already disconnected */ }
+      });
+      ambientGraph = null;
+      toast('Ambient audio could not be started. Check your browser audio settings.', 'warning');
     }
-    const source = ctx.createBufferSource(); source.buffer = buffer; source.loop = true;
-    const filter = ctx.createBiquadFilter();
-    const type = state.preferences.ambientType;
-    filter.type = type === 'white' ? 'highpass' : type === 'cafe' ? 'bandpass' : 'lowpass';
-    filter.frequency.value = type === 'white' ? 950 : type === 'cafe' ? 850 : 1250;
-    filter.Q.value = type === 'cafe' ? .75 : .45;
-    const gain = ctx.createGain(); gain.gain.value = 0.0001;
-    source.connect(filter).connect(gain).connect(ctx.destination); source.start();
-    let lfo = null;
-    if (type === 'cafe') {
-      lfo = ctx.createOscillator(); const lfoGain = ctx.createGain(); lfo.frequency.value = .16; lfoGain.gain.value = .0008;
-      lfo.connect(lfoGain).connect(gain.gain); lfo.start();
-    }
-    ambientGraph = { source, filter, gain, lfo };
-    updateAmbientGain();
   }
   function updateAmbientGain() {
     if (!ambientGraph || !audioContext) return;
     const breakMultiplier = state.timer.mode === 'break' ? .35 : 1;
     const value = state.preferences.ambientEnabled ? (state.preferences.ambientVolume / 100) * .11 * breakMultiplier : .0001;
-    ambientGraph.gain.gain.setTargetAtTime(Math.max(.0001, value), audioContext.currentTime, .35);
+    try { ambientGraph.gain.gain.setTargetAtTime(Math.max(.0001, value), audioContext.currentTime, .35); }
+    catch (error) { stopAmbient(); }
   }
   function restartAmbient() { stopAmbient(); if (state.preferences.ambientEnabled && audioUnlocked) startAmbient(); }
 
@@ -333,7 +454,9 @@
     });
     if (name === 'progress') renderAnalytics();
     if (name === 'tasks') renderTasks();
-    window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+    try { window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }); }
+    catch (error) { window.scrollTo(0, 0); }
   }
   navButtons.forEach((button) => button.addEventListener('click', () => goView(button.dataset.nav)));
   viewButtons.forEach((button) => button.addEventListener('click', () => goView(button.dataset.goView)));
@@ -425,32 +548,65 @@
     el.todayLabel.textContent = formatDateLabel(new Date()); renderTimerUIAndAux(); renderStats(); renderTasks(); renderSettings(); applyTheme(); updateStorageNote();
   }
   function renderTimerUIAndAux() { updateTimerUI(); }
+  function adoptStoredState(raw, notify = false) {
+    saveFocusNoteDebounced.cancel();
+    savePreferencesDebounced.cancel();
+    stopTicker();
+    if (raw === null) {
+      state = defaultState();
+      storageCorruptedRaw = null;
+      storageRecoveryPreserved = false;
+    } else {
+      try {
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new TypeError('Saved state must be an object.');
+        state = normalizeState(parsed);
+        storageCorruptedRaw = needsRecoveryCopy(parsed, state) ? raw : null;
+      } catch (error) {
+        state = defaultState();
+        storageCorruptedRaw = raw;
+      }
+    }
+    lastKnownStateRaw = raw;
+    chartRange = state.preferences.chartRange;
+    if (editTaskId && !state.tasks.some((task) => task.id === editTaskId)) resetTaskForm();
+    renderAll();
+    if (state.timer.status === 'running') startTicker();
+    if (state.preferences.ambientEnabled) {
+      if (audioUnlocked) restartAmbient();
+    } else stopAmbient();
+    updateAmbientGain();
+    if (notify) toast('StudyPulse found a newer save from another tab and refreshed this view. Retry your last change if needed.', 'warning');
+  }
   function completeFocusSession(completedAt) {
     const timer = state.timer;
     if (timer.status === 'completed' || timer.mode !== 'focus') return;
     stopTicker();
     const at = Number.isFinite(completedAt) ? completedAt : Date.now();
     const duplicate = timer.sessionId && state.sessions.some((session) => session.id === timer.sessionId);
+    let streakAdvanced = false;
     if (!duplicate && timer.sessionId) {
       const task = state.tasks.find((item) => item.id === timer.linkedTaskId);
       state.sessions.unshift({ id: timer.sessionId, completedAt: at, durationSeconds: timer.durationSeconds, taskId: timer.linkedTaskId || null, taskTitle: timer.linkedTaskTitle || task?.title || '' });
       state.sessions = state.sessions.slice(0, MAX_SESSIONS);
       if (task && !task.done) task.completedSessions = Math.min(9999, task.completedSessions + 1);
-      const streakAdvanced = bumpStreak(at);
-      if (streakAdvanced) {
-        el.streakFlame.classList.remove('flame-pop'); void el.streakFlame.offsetWidth; el.streakFlame.classList.add('flame-pop');
-        toast(`Streak updated: ${effectiveStreak()} day${effectiveStreak() === 1 ? '' : 's'}!`, 'success');
-      }
+      streakAdvanced = bumpStreak(at);
     }
     timer.status = 'completed'; timer.remainingSeconds = 0; timer.endAt = null;
-    persist(); renderAll();
+    if (!persist()) return;
+    renderAll();
+    if (streakAdvanced) {
+      el.streakFlame.classList.remove('flame-pop'); void el.streakFlame.offsetWidth; el.streakFlame.classList.add('flame-pop');
+      toast(`Streak updated: ${effectiveStreak()} day${effectiveStreak() === 1 ? '' : 's'}!`, 'success');
+    }
     el.completionDescription.textContent = `You completed ${Math.round(timer.durationSeconds / 60)} minutes of focused work. Take a gentle break before your next session.`;
     toast('Session saved. Beautiful work.', 'success'); announce('Take a break', 740); updateAmbientGain();
   }
   function completeBreak() {
     stopTicker();
     state.timer = { mode: 'focus', durationSeconds: DURATIONS.focus, remainingSeconds: DURATIONS.focus, status: 'idle', endAt: null, sessionId: null, linkedTaskId: null, linkedTaskTitle: '' };
-    persist(); renderAll(); toast('Break complete. Ready when you are.', 'success'); announce('Break complete. Ready to focus', 590); updateAmbientGain();
+    if (!persist()) return;
+    renderAll(); toast('Break complete. Ready when you are.', 'success'); announce('Break complete. Ready to focus', 590); updateAmbientGain();
   }
   function refreshLocalDay() {
     const today = localDateKey();
@@ -468,7 +624,11 @@
     if (remaining <= 0) { if (timer.mode === 'focus') completeFocusSession(timer.endAt); else completeBreak(); return; }
     timer.remainingSeconds = remaining; updateTimerUI();
   }
-  function startTicker() { stopTicker(); timerTick(); if (state.timer.status === 'running') ticker = window.setInterval(timerTick, 1000); }
+  function startTicker() {
+    stopTicker();
+    timerTick();
+    if (state.timer.status === 'running' && !document.hidden) ticker = window.setInterval(timerTick, 1000);
+  }
   function startTimer() {
     unlockAudio();
     const timer = state.timer;
@@ -482,7 +642,8 @@
       const linked = state.tasks.find((task) => task.id === state.activeTaskId); timer.linkedTaskTitle = linked ? linked.title : state.taskNote;
     }
     timer.status = 'running'; timer.endAt = Date.now() + timer.remainingSeconds * 1000;
-    persist(); updateTimerUI(); startTicker(); updateAmbientGain();
+    if (!persist()) return;
+    updateTimerUI(); startTicker(); updateAmbientGain();
     if (timer.mode === 'focus') { announce('Focus session started', 520); toast('Focus session started. You’ve got this.', 'info'); }
     else toast('Break started. Follow your breathing.', 'info');
   }
@@ -490,17 +651,27 @@
     const timer = state.timer; if (timer.status !== 'running' || !timer.endAt) return;
     const remaining = Math.ceil((timer.endAt - Date.now()) / 1000);
     if (remaining <= 0) { timerTick(); return; }
-    stopTicker(); timer.remainingSeconds = remaining; timer.status = 'paused'; timer.endAt = null; persist(); updateTimerUI(); updateAmbientGain(); toast('Timer paused.', 'info');
+    stopTicker(); timer.remainingSeconds = remaining; timer.status = 'paused'; timer.endAt = null;
+    if (!persist()) return;
+    updateTimerUI(); updateAmbientGain(); toast('Timer paused.', 'info');
   }
   function resetTimer() {
     stopTicker(); state.timer = { mode: 'focus', durationSeconds: DURATIONS.focus, remainingSeconds: DURATIONS.focus, status: 'idle', endAt: null, sessionId: null, linkedTaskId: null, linkedTaskTitle: '' };
-    persist(); updateTimerUI(); el.completionCard.hidden = true; updateAmbientGain(); toast('Timer reset to 25:00.', 'info');
+    if (!persist()) return false;
+    updateTimerUI(); el.completionCard.hidden = true; updateAmbientGain(); toast('Timer reset to 25:00.', 'info');
+    return true;
   }
   function beginBreak() {
     stopTicker(); state.timer = { mode: 'break', durationSeconds: DURATIONS.break, remainingSeconds: DURATIONS.break, status: 'running', endAt: Date.now() + DURATIONS.break * 1000, sessionId: null, linkedTaskId: null, linkedTaskTitle: '' };
-    persist(); renderTimerUIAndAux(); startTicker(); updateAmbientGain(); toast('Five-minute break started.', 'info');
+    if (!persist()) return;
+    renderTimerUIAndAux(); startTicker(); updateAmbientGain(); toast('Five-minute break started.', 'info');
   }
-  function skipBreak() { if (state.timer.mode !== 'break') return; stopTicker(); state.timer = { mode: 'focus', durationSeconds: DURATIONS.focus, remainingSeconds: DURATIONS.focus, status: 'idle', endAt: null, sessionId: null, linkedTaskId: null, linkedTaskTitle: '' }; persist(); renderTimerUIAndAux(); updateAmbientGain(); toast('Break skipped. Back to focus when ready.', 'info'); }
+  function skipBreak() {
+    if (state.timer.mode !== 'break') return;
+    stopTicker(); state.timer = { mode: 'focus', durationSeconds: DURATIONS.focus, remainingSeconds: DURATIONS.focus, status: 'idle', endAt: null, sessionId: null, linkedTaskId: null, linkedTaskTitle: '' };
+    if (!persist()) return;
+    renderTimerUIAndAux(); updateAmbientGain(); toast('Break skipped. Back to focus when ready.', 'info');
+  }
 
   // ---------- Task manager ----------
   function emptyState(title, description, symbol = '✧') {
@@ -557,19 +728,20 @@
     event.preventDefault(); const title = text(el.newTaskTitle.value, 120);
     if (!title) { toast('Add a task name first.', 'warning'); el.newTaskTitle.focus(); return; }
     const estimate = clamp(el.taskEstimate.value, 1, 50, 2); const priority = ['low', 'medium', 'high'].includes(el.taskPriority.value) ? el.taskPriority.value : 'medium';
+    const message = editTaskId ? 'Task updated.' : 'Task locked in!';
     if (editTaskId) {
       const task = state.tasks.find((item) => item.id === editTaskId);
       if (task) { task.title = title; task.estimate = estimate; task.priority = priority; if (state.timer.linkedTaskId === task.id) state.timer.linkedTaskTitle = title; }
-      toast('Task updated.', 'success');
     } else {
-      const task = { id: makeId(), title, estimate, completedSessions: 0, priority, done: false, createdAt: Date.now() }; state.tasks.unshift(task); state.activeTaskId = task.id; toast('Task locked in!', 'success');
+      const task = { id: makeId(), title, estimate, completedSessions: 0, priority, done: false, createdAt: Date.now() }; state.tasks.unshift(task); state.activeTaskId = task.id;
     }
-    persist(); resetTaskForm(); renderTasks();
+    if (!persist()) return;
+    resetTaskForm(); renderTasks(); toast(message, 'success');
   }
-  function selectTask(id) { const task = state.tasks.find((item) => item.id === id && !item.done); if (!task) return; state.activeTaskId = id; persist(); renderTasks(); renderStats(); toast(`“${task.title}” linked to your timer.`, 'success'); }
-  function completeTask(id) { const task = state.tasks.find((item) => item.id === id); if (!task) return; task.done = true; if (state.activeTaskId === id) state.activeTaskId = null; persist(); renderTasks(); toast('Task marked complete.', 'success'); }
+  function selectTask(id) { const task = state.tasks.find((item) => item.id === id && !item.done); if (!task) return; state.activeTaskId = id; if (!persist()) return; renderTasks(); renderStats(); toast(`“${task.title}” linked to your timer.`, 'success'); }
+  function completeTask(id) { const task = state.tasks.find((item) => item.id === id); if (!task) return; task.done = true; if (state.activeTaskId === id) state.activeTaskId = null; if (!persist()) return; renderTasks(); toast('Task marked complete.', 'success'); }
   function editTask(id) { const task = state.tasks.find((item) => item.id === id); if (!task) return; editTaskId = id; el.newTaskTitle.value = task.title; el.taskEstimate.value = task.estimate; el.taskPriority.value = task.priority; el.taskFormTitle.textContent = 'Edit task'; el.saveTaskButton.textContent = 'Update task'; el.cancelEdit.hidden = false; el.newTaskTitle.focus(); el.taskForm.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-  function deleteTask(id) { const task = state.tasks.find((item) => item.id === id); if (!task) return; state.tasks = state.tasks.filter((item) => item.id !== id); if (state.activeTaskId === id) state.activeTaskId = null; persist(); renderTasks(); toast('Task deleted.', 'info'); }
+  function deleteTask(id) { const task = state.tasks.find((item) => item.id === id); if (!task) return; state.tasks = state.tasks.filter((item) => item.id !== id); if (state.activeTaskId === id) state.activeTaskId = null; if (!persist()) return; renderTasks(); toast('Task deleted.', 'info'); }
   el.taskForm.addEventListener('submit', submitTask); el.cancelEdit.addEventListener('click', resetTaskForm);
   document.addEventListener('click', (event) => {
     const button = event.target.closest('[data-action]'); if (!button) return;
@@ -599,7 +771,14 @@
     const pixelWidth = Math.round(width * dpr); const pixelHeight = Math.round(height * dpr);
     if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
     if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
-    const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
+    let ctx = null;
+    try { ctx = canvas.getContext('2d'); } catch (error) { /* unavailable canvas implementation */ }
+    if (!ctx) {
+      canvas.setAttribute('aria-label', 'Focus activity chart is unavailable in this browser.');
+      return;
+    }
+    canvas.setAttribute('aria-label', 'Focus minutes for the selected date range');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, height);
     const today = dateFromKey(localDateKey());
     const firstDate = new Date(today); firstDate.setDate(today.getDate() - (chartRange - 1));
     const firstKey = localDateKey(firstDate.getTime()); const todayKey = localDateKey(today.getTime());
@@ -641,19 +820,21 @@
   let chartDrawFrame = 0;
   function scheduleChartDraw() {
     if (progressView.hidden || chartDrawFrame) return;
-    chartDrawFrame = window.requestAnimationFrame(() => {
+    const requestFrame = window.requestAnimationFrame || ((callback) => window.setTimeout(callback, 16));
+    chartDrawFrame = requestFrame(() => {
       chartDrawFrame = 0;
       if (!progressView.hidden) drawChart();
     });
   }
   rangeButtons.forEach((button) => button.addEventListener('click', () => {
     chartRange = Number(button.dataset.range) === 30 ? 30 : 7;
-    state.preferences.chartRange = chartRange; persist();
+    state.preferences.chartRange = chartRange;
+    if (!persist()) return;
     rangeButtons.forEach((item) => { const active = item === button; item.classList.toggle('active', active); item.setAttribute('aria-pressed', String(active)); });
     scheduleChartDraw();
   }));
   if ('ResizeObserver' in window) {
-    chartResizeObserver = new ResizeObserver(scheduleChartDraw);
+    chartResizeObserver = new window.ResizeObserver(scheduleChartDraw);
     chartResizeObserver.observe(progressView);
   } else window.addEventListener('resize', scheduleChartDraw, { passive: true });
 
@@ -664,24 +845,46 @@
     el.ambientToggle.checked = state.preferences.ambientEnabled; el.ambientType.value = state.preferences.ambientType; el.ambientVolume.value = state.preferences.ambientVolume; el.ambientVolumeValue.value = `${state.preferences.ambientVolume}%`; el.ambientVolumeValue.textContent = `${state.preferences.ambientVolume}%`;
     themeRadios.forEach((radio) => { radio.checked = radio.value === state.preferences.theme; });
   }
-  function savePreferences() { persist(); applyTheme(); renderSettings(); updateAmbientGain(); }
+  function savePreferences() {
+    if (!persist()) return false;
+    applyTheme(); renderSettings(); updateAmbientGain();
+    return true;
+  }
   function openSettings() { renderSettings(); if (typeof el.settingsDialog.showModal === 'function') el.settingsDialog.showModal(); else toast('Settings dialog is not supported in this browser.', 'warning'); }
   function closeSettings() { if (el.settingsDialog.open) el.settingsDialog.close(); }
   el.settingsButton.addEventListener('click', openSettings); el.closeSettings.addEventListener('click', closeSettings); el.settingsDone.addEventListener('click', closeSettings);
   el.settingsDialog.addEventListener('click', (event) => { if (event.target === el.settingsDialog) closeSettings(); });
-  el.alertsToggle.addEventListener('change', () => { state.preferences.alertsEnabled = el.alertsToggle.checked; savePreferences(); toast(state.preferences.alertsEnabled ? 'Voice alerts enabled.' : 'Voice alerts muted.', 'info'); });
+  el.alertsToggle.addEventListener('change', () => {
+    state.preferences.alertsEnabled = el.alertsToggle.checked;
+    if (savePreferences()) toast(state.preferences.alertsEnabled ? 'Voice alerts enabled.' : 'Voice alerts muted.', 'info');
+  });
   el.alertVolume.addEventListener('input', () => { state.preferences.alertVolume = clamp(el.alertVolume.value, 0, 100, 55); el.alertVolumeValue.textContent = `${state.preferences.alertVolume}%`; savePreferencesDebounced(); });
   el.alertVolume.addEventListener('change', () => savePreferencesDebounced.flush());
-  el.ambientToggle.addEventListener('change', () => { state.preferences.ambientEnabled = el.ambientToggle.checked; savePreferences(); if (state.preferences.ambientEnabled) { unlockAudio(); startAmbient(); toast('Ambient sound enabled.', 'success'); } else { stopAmbient(); toast('Ambient sound off.', 'info'); } });
-  el.ambientType.addEventListener('change', () => { state.preferences.ambientType = el.ambientType.value; persist(); restartAmbient(); });
+  el.ambientToggle.addEventListener('change', () => {
+    state.preferences.ambientEnabled = el.ambientToggle.checked;
+    if (!savePreferences()) return;
+    if (state.preferences.ambientEnabled) { unlockAudio(); startAmbient(); toast('Ambient sound enabled.', 'success'); }
+    else { stopAmbient(); toast('Ambient sound off.', 'info'); }
+  });
+  el.ambientType.addEventListener('change', () => { state.preferences.ambientType = el.ambientType.value; if (!persist()) return; restartAmbient(); });
   el.ambientVolume.addEventListener('input', () => { state.preferences.ambientVolume = clamp(el.ambientVolume.value, 0, 100, 28); el.ambientVolumeValue.textContent = `${state.preferences.ambientVolume}%`; savePreferencesDebounced(); updateAmbientGain(); });
   el.ambientVolume.addEventListener('change', () => savePreferencesDebounced.flush());
-  themeRadios.forEach((radio) => radio.addEventListener('change', () => { state.preferences.theme = radio.value; savePreferences(); toast(`Theme changed to ${radio.parentElement.querySelector('span:last-child').textContent}.`, 'success'); }));
+  themeRadios.forEach((radio) => radio.addEventListener('change', () => {
+    state.preferences.theme = radio.value;
+    const themeName = radio.parentElement.querySelector('span:last-child')?.textContent || radio.value;
+    if (savePreferences()) toast(`Theme changed to ${themeName}.`, 'success');
+  }));
 
   // ---------- Welcome / onboarding ----------
-  function markOnboarded() { try { localStorage.setItem(KEYS.onboarded, 'yes'); } catch (error) { storageAvailable = false; } }
+  function markOnboarded() {
+    try {
+      if (!storage) throw new Error('Local storage is unavailable.');
+      storage.setItem(KEYS.onboarded, 'yes');
+    } catch (error) { storageAvailable = false; }
+    updateStorageNote();
+  }
   function showWelcome(force = false) {
-    if (!force) { try { if (localStorage.getItem(KEYS.onboarded) === 'yes') return; } catch (error) { /* show welcome when storage is unavailable */ } }
+    if (!force) { try { if (storage && storage.getItem(KEYS.onboarded) === 'yes') return; } catch (error) { /* show welcome when storage is unavailable */ } }
     if (!el.welcomeDialog.open && typeof el.welcomeDialog.showModal === 'function') el.welcomeDialog.showModal();
     else if (!el.welcomeDialog.open) el.welcomeDialog.setAttribute('open', '');
   }
@@ -693,8 +896,9 @@
   function saveFocusNote(showToast = false) {
     saveFocusNoteDebounced.cancel();
     state.taskNote = text(el.taskInput.value, 120);
-    persist(); renderFocusTask();
-    el.taskSaveStatus.textContent = 'Saved on this device';
+    if (!persist()) return;
+    renderFocusTask();
+    el.taskSaveStatus.textContent = storageAvailable ? 'Saved on this device' : 'Not saved — storage unavailable';
     if (showToast) toast('Task locked in!', 'success');
   }
   el.taskInput.addEventListener('input', () => {
@@ -705,9 +909,17 @@
     saveFocusNoteDebounced();
   });
   el.taskInput.addEventListener('change', () => saveFocusNote(true));
-  el.clearTask.addEventListener('click', () => { saveFocusNoteDebounced.cancel(); el.taskInput.value = ''; state.taskNote = ''; persist(); renderFocusTask(); el.taskInput.focus(); toast('Focus note cleared.', 'info'); });
-  el.activeTaskSelect.addEventListener('change', () => { const id = el.activeTaskSelect.value || null; state.activeTaskId = id; persist(); renderTasks(); const task = state.tasks.find((item) => item.id === id); if (task) toast(`“${task.title}” linked to your timer.`, 'success'); });
-  el.start.addEventListener('click', startTimer); el.pause.addEventListener('click', pauseTimer); el.reset.addEventListener('click', resetTimer); el.anotherSession.addEventListener('click', () => { resetTimer(); startTimer(); });
+  el.clearTask.addEventListener('click', () => {
+    saveFocusNoteDebounced.cancel(); el.taskInput.value = ''; state.taskNote = '';
+    if (!persist()) return;
+    renderFocusTask(); el.taskInput.focus(); toast('Focus note cleared.', 'info');
+  });
+  el.activeTaskSelect.addEventListener('change', () => {
+    const id = el.activeTaskSelect.value || null; state.activeTaskId = id;
+    if (!persist()) return;
+    renderTasks(); const task = state.tasks.find((item) => item.id === id); if (task) toast(`“${task.title}” linked to your timer.`, 'success');
+  });
+  el.start.addEventListener('click', startTimer); el.pause.addEventListener('click', pauseTimer); el.reset.addEventListener('click', resetTimer); el.anotherSession.addEventListener('click', () => { if (resetTimer()) startTimer(); });
   el.startBreak.addEventListener('click', beginBreak); el.skipBreak.addEventListener('click', skipBreak);
   document.addEventListener('pointerdown', unlockAudio, { once: true }); document.addEventListener('keydown', unlockAudio, { once: true });
 
@@ -725,12 +937,19 @@
   });
   window.setInterval(refreshLocalDay, 60000);
   window.addEventListener('pagehide', () => {
+    stopTicker();
     saveFocusNoteDebounced.flush();
     savePreferencesDebounced.flush();
-    persist();
   });
   window.addEventListener('pageshow', () => { if (state.timer.status === 'running') { timerTick(); if (state.timer.status === 'running' && ticker === null) startTicker(); } renderStats(); });
-  window.addEventListener('storage', (event) => { if (event.key === KEYS.state && event.newValue) { try { state = normalizeState(JSON.parse(event.newValue)); renderAll(); } catch (error) { toast('Could not sync changes from another tab.', 'warning'); } } });
+  window.addEventListener('storage', (event) => {
+    if (event.key !== null && event.key !== KEYS.state) return;
+    let currentRaw = null;
+    try { currentRaw = storage ? storage.getItem(KEYS.state) : null; }
+    catch (error) { storageAvailable = false; updateStorageNote(); return; }
+    adoptStoredState(currentRaw, true);
+    if (event.key === null) showWelcome(false);
+  });
 
   if (
   'serviceWorker' in navigator &&
@@ -739,8 +958,10 @@
    location.hostname === '127.0.0.1')
 ) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', {
-      scope: '/',
+    const workerUrl = new URL('./sw.js', document.baseURI);
+    const workerScope = new URL('./', document.baseURI).pathname;
+    navigator.serviceWorker.register(workerUrl.href, {
+      scope: workerScope,
       updateViaCache: 'none'
     }).catch((error) => {
       console.warn('StudyPulse: Service Worker registration failed.', error);
