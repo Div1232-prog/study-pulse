@@ -1,12 +1,11 @@
-
 <!DOCTYPE html>
-<html data-color-scheme="dark" lang="en">
+<html lang="en">
  <head>
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
-  <meta content="#070a12" id="meta-theme-color" name="theme-color"/>
+  <meta content="#070a12" name="theme-color"/>
   <meta content="StudyPulse" name="application-name"/>
-  <meta content="dark light" name="color-scheme"/>
+  <meta content="light dark" name="color-scheme"/>
   <meta content="index, follow" name="robots"/>
   <meta content="StudyPulse is a free student focus timer and Pomodoro study tracker for exams. Plan tasks, take breathing breaks, and track your study progress right in your browser." name="description"/>
   <meta content="website" property="og:type"/>
@@ -21,8 +20,8 @@
   <title>
    StudyPulse &mdash; Student Focus Timer &amp; Study Planner
   </title>
-  <link href="https://fonts.googleapis.com" rel="preconnect"/>
-  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link href="style.css" rel="stylesheet"/>
   <script defer="" src="app.js">
@@ -35,12 +34,12 @@
     }
     .seo-faq h2 {
       margin: 0 0 18px;
-      color: var(--text-strong, var(--text));
+      color: var(--text);
       font-size: clamp(18px, 2.5vw, 22px);
     }
     .seo-faq h3 {
       margin: 18px 0 6px;
-      color: var(--text-strong, var(--text));
+      color: var(--text);
       font-size: 13px;
     }
     .seo-faq p {
@@ -58,7 +57,7 @@
     }
   </style>
  </head>
- <body data-color-scheme="dark" data-theme="default">
+ <body data-theme="default">
   <div aria-hidden="true" class="ambient ambient-one">
   </div>
   <div aria-hidden="true" class="ambient ambient-two">
@@ -94,18 +93,6 @@
       </span>
       LOCAL SESSION
      </span>
-     <button aria-label="Switch between Light and Dark theme" aria-pressed="false" class="icon-button theme-toggle-btn" id="theme-toggle-button" title="Toggle light or dark theme" type="button">
-      <svg aria-hidden="true" class="icon-sun" viewbox="0 0 24 24">
-       <circle cx="12" cy="12" r="4">
-       </circle>
-       <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41">
-       </path>
-      </svg>
-      <svg aria-hidden="true" class="icon-moon" viewbox="0 0 24 24">
-       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z">
-       </path>
-      </svg>
-     </button>
      <button aria-label="Open StudyPulse welcome and help" class="icon-button help-button" id="help-button" title="Help" type="button">
       ?
      </button>
@@ -143,7 +130,7 @@
       </div>
      </div>
      <section aria-label="Focus workspace" class="workspace">
-      <div aria-labelledby="timer-heading" class="timer-card glass-card">
+      <section aria-labelledby="timer-heading" class="timer-card glass-card">
        <div class="timer-card-top">
         <div class="mode-pill">
          <span class="mode-pulse">
@@ -211,23 +198,6 @@
          </svg>
         </button>
        </div>
-       <div aria-label="Quick focus duration presets" class="timer-duration-bar" id="focus-presets" role="group">
-        <button aria-pressed="true" class="preset-chip active" data-focus-minutes="25" type="button">
-         25m
-        </button>
-        <button aria-pressed="false" class="preset-chip" data-focus-minutes="30" type="button">
-         30m
-        </button>
-        <button aria-pressed="false" class="preset-chip" data-focus-minutes="45" type="button">
-         45m
-        </button>
-        <button aria-pressed="false" class="preset-chip" data-focus-minutes="60" type="button">
-         60m
-        </button>
-        <button aria-pressed="false" class="preset-chip" data-focus-minutes="90" type="button">
-         90m
-        </button>
-       </div>
        <p class="timer-hint" id="timer-hint">
         Find a comfortable position and begin.
        </p>
@@ -246,7 +216,7 @@
          Skip break
         </button>
        </div>
-      </div>
+      </section>
       <aside class="side-column">
        <section aria-labelledby="task-heading" class="task-card glass-card">
         <div class="section-heading">
@@ -299,7 +269,7 @@
           ✦
          </span>
          <p id="task-reminder">
-          Keep it small. Your only job is the next 25 minutes.
+          Keep it small. Give your attention to one focus session at a time.
          </p>
         </div>
         <button class="subtle-link" data-go-view="tasks" type="button">
@@ -395,7 +365,7 @@
       </div>
       <div class="completion-actions">
        <button class="completion-button" id="start-break-button" type="button">
-        Start 5-minute break
+        Start break
        </button>
        <button class="text-button" id="another-session-button" type="button">
         Skip break and start another focus session
@@ -416,7 +386,7 @@
        How can I focus while studying for exams?
       </h3>
       <p>
-       Choose one specific task, set a manageable focus period, and remove distractions before you begin. StudyPulse defaults to a 25-minute focus session followed by a five-minute break, and lets you customize both durations to match your study rhythm.
+       Choose one specific task, set a manageable focus period, and remove distractions before you begin. StudyPulse lets you choose a focus duration that suits your task, then take a manual or automatic break configured in your settings.
       </p>
       <h3>
        What is the best free Pomodoro timer app for students?
@@ -455,7 +425,7 @@
        TASK SPACE
       </div>
      </div>
-     <section aria-labelledby="task-form-title" class="glass-card task-manager-card">
+     <section class="glass-card task-manager-card">
       <div class="section-heading">
        <div aria-hidden="true" class="section-icon task-icon">
         <svg viewbox="0 0 24 24">
@@ -511,13 +481,13 @@
        </div>
       </form>
      </section>
-     <section aria-labelledby="active-tasks-heading" class="task-list-section">
+     <section class="task-list-section">
       <div class="list-section-heading">
        <div>
         <p class="eyebrow">
          IN PROGRESS
         </p>
-        <h2 id="active-tasks-heading">
+        <h2>
          Active tasks
          <span class="count-pill" id="active-task-count">
           0
@@ -531,13 +501,13 @@
       <div class="task-list" id="active-task-list">
       </div>
      </section>
-     <section aria-labelledby="completed-tasks-heading" class="task-list-section completed-section">
+     <section class="task-list-section completed-section">
       <div class="list-section-heading">
        <div>
         <p class="eyebrow">
          DONE FOR NOW
         </p>
-        <h2 id="completed-tasks-heading">
+        <h2>
          Completed
          <span class="count-pill" id="completed-task-count">
           0
@@ -550,7 +520,7 @@
      </section>
     </section>
     <!-- PROGRESS VIEW -->
-    <section aria-labelledby="progress-page-title" class="view-panel" data-view="progress" hidden="" id="view-progress">
+    <section aria-labelledby="progress-title" class="view-panel" data-view="progress" hidden="" id="view-progress">
      <div class="page-heading">
       <div>
        <p class="eyebrow">
@@ -558,7 +528,7 @@
         </span>
         NOTICE YOUR MOMENTUM
        </p>
-       <h1 id="progress-page-title">
+       <h1 id="progress-title">
         Your
         <span>
          progress.
@@ -572,7 +542,7 @@
        PERSONAL ANALYTICS
       </div>
      </div>
-     <section aria-label="All-time focus summary" class="analytics-stats stats-grid four-stats">
+     <section class="analytics-stats stats-grid four-stats">
       <div class="stat-tile">
        <span class="stat-number" id="alltime-minutes">
         0
@@ -606,7 +576,7 @@
        </span>
       </div>
      </section>
-     <section aria-labelledby="analytics-title" class="glass-card chart-card">
+     <section class="glass-card chart-card">
       <div class="chart-header">
        <div>
         <p class="eyebrow">
@@ -631,7 +601,7 @@
       </div>
       <div class="chart-legend">
        <span>
-        <i aria-hidden="true">
+        <i>
         </i>
         Focus minutes per day
        </span>
@@ -641,7 +611,7 @@
       </div>
      </section>
      <section class="glass-card analytics-note">
-      <span aria-hidden="true" class="note-spark">
+      <span class="note-spark">
        ✦
       </span>
       <p id="analytics-insight">
@@ -656,7 +626,7 @@
       Your focus data stays on this device.
      </span>
      <span class="footer-version">
-      STUDYPULSE &middot; V1.2
+      STUDYPULSE &middot; V1.1
      </span>
     </footer>
    </main>
@@ -693,7 +663,7 @@
    </nav>
   </div>
   <!-- SETTINGS -->
-  <dialog aria-labelledby="settings-title" class="settings-dialog" id="settings-dialog">
+  <dialog aria-labelledby="settings-title" aria-describedby="settings-description" class="settings-dialog" id="settings-dialog">
    <div class="dialog-topline">
     <div aria-hidden="true" class="section-icon settings-icon">
      <svg viewbox="0 0 24 24">
@@ -716,113 +686,52 @@
    <h2 id="settings-title">
     Focus settings
    </h2>
-   <p class="dialog-description">
-    Tune your timer durations, atmosphere, and theme. Preferences stay on this device.
+   <p class="dialog-description" id="settings-description">
+    Tune your timer and atmosphere. Your preferences stay on this device.
    </p>
-   <section class="settings-group">
-    <h3>
-     Timer &amp; break durations
+   <section aria-labelledby="timer-preferences-heading" class="settings-group">
+    <h3 id="timer-preferences-heading">
+     Timer preferences
     </h3>
-    <div class="duration-settings-grid">
-     <div class="duration-field">
-      <label for="custom-focus-minutes">
-       Focus length
-      </label>
-      <div class="duration-input-group">
-       <input aria-describedby="focus-duration-hint" class="duration-input" id="custom-focus-minutes" inputmode="numeric" max="180" min="1" step="1" type="number" value="25"/>
-       <span class="duration-unit">
-        MIN
-       </span>
-      </div>
-     </div>
-     <div class="duration-field">
-      <label for="custom-break-minutes">
-       Break length
-      </label>
-      <div class="duration-input-group">
-       <input aria-describedby="focus-duration-hint" class="duration-input" id="custom-break-minutes" inputmode="numeric" max="60" min="1" step="1" type="number" value="5"/>
-       <span class="duration-unit">
-        MIN
-       </span>
-      </div>
-     </div>
-    </div>
-    <p class="task-meta" id="focus-duration-hint">
-     Set focus from 1&ndash;180 min (e.g. 25, 45, 60, 90) and break from 1&ndash;60 min.
-    </p>
+    <label class="setting-row" for="focus-duration-input">
+     <span>
+      <strong>
+       Focus duration
+      </strong>
+      <small id="focus-duration-help">
+       Choose 1–1440 minutes for each new focus session.
+      </small>
+     </span>
+     <input aria-describedby="focus-duration-help" autocomplete="off" class="field-control" id="focus-duration-input" inputmode="numeric" max="1440" min="1" step="1" type="number" value="25"/>
+    </label>
+    <label class="setting-row" for="break-duration-input">
+     <span>
+      <strong>
+       Break duration
+      </strong>
+      <small id="break-duration-help">
+       Choose 1–180 minutes. The default is 5 minutes.
+      </small>
+     </span>
+     <input aria-describedby="break-duration-help" autocomplete="off" class="field-control" id="break-duration-input" inputmode="numeric" max="180" min="1" step="1" type="number" value="5"/>
+    </label>
     <label class="setting-row" for="auto-break-toggle">
      <span>
       <strong>
-       Auto-start break
+       Automatic break
       </strong>
-      <small>
-       Automatically begin break timer when a focus session finishes
+      <small id="auto-break-help">
+       Start your configured break when a focus session finishes.
       </small>
      </span>
-     <input class="switch-input" id="auto-break-toggle" type="checkbox"/>
+     <input aria-describedby="auto-break-help" checked="" class="switch-input" id="auto-break-toggle" type="checkbox"/>
     </label>
-   </section>
-   <section class="settings-group">
-    <h3>
-     Appearance &amp; theme
-    </h3>
-    <div aria-label="Choose color mode" class="mode-switch-group" id="color-scheme-switcher" role="radiogroup">
-     <label class="mode-option">
-      <input checked="" name="colorScheme" type="radio" value="dark"/>
-      <span>
-       Dark mode
-      </span>
-     </label>
-     <label class="mode-option">
-      <input name="colorScheme" type="radio" value="light"/>
-      <span>
-       Light mode
-      </span>
-     </label>
-    </div>
-    <label class="field-label">
-     Accent color
-    </label>
-    <div aria-label="Choose accent theme" class="theme-options" role="radiogroup">
-     <label class="theme-option">
-      <input name="theme" type="radio" value="default"/>
-      <span class="theme-swatch theme-default">
-      </span>
-      <span>
-       Default
-      </span>
-     </label>
-     <label class="theme-option">
-      <input name="theme" type="radio" value="purple"/>
-      <span class="theme-swatch theme-purple">
-      </span>
-      <span>
-       Cyberpunk Purple
-      </span>
-     </label>
-     <label class="theme-option">
-      <input name="theme" type="radio" value="ocean"/>
-      <span class="theme-swatch theme-ocean">
-      </span>
-      <span>
-       Ocean Cyan
-      </span>
-     </label>
-     <label class="theme-option">
-      <input name="theme" type="radio" value="emerald"/>
-      <span class="theme-swatch theme-emerald">
-      </span>
-      <span>
-       Emerald Green
-      </span>
-     </label>
-    </div>
    </section>
    <section class="settings-group">
     <h3>
      Voice &amp; alerts
     </h3>
-    <label class="setting-row" for="alerts-toggle">
+    <label class="setting-row">
      <span>
       <strong>
        Sound notifications
@@ -833,7 +742,7 @@
      </span>
      <input class="switch-input" id="alerts-toggle" type="checkbox"/>
     </label>
-    <label class="setting-row volume-setting" for="alert-volume">
+    <label class="setting-row volume-setting">
      <span>
       <strong>
        Alert volume
@@ -843,7 +752,7 @@
       </small>
      </span>
      <input id="alert-volume" max="100" min="0" type="range" value="55"/>
-     <output for="alert-volume" id="alert-volume-value">
+     <output id="alert-volume-value">
       55%
      </output>
     </label>
@@ -852,7 +761,7 @@
     <h3>
      Ambient sound
     </h3>
-    <label class="setting-row" for="ambient-toggle">
+    <label class="setting-row">
      <span>
       <strong>
        Ambient audio
@@ -877,7 +786,7 @@
       Caf&eacute; ambience
      </option>
     </select>
-    <label class="setting-row volume-setting" for="ambient-volume">
+    <label class="setting-row volume-setting">
      <span>
       <strong>
        Ambient volume
@@ -887,10 +796,57 @@
       </small>
      </span>
      <input id="ambient-volume" max="100" min="0" type="range" value="28"/>
-     <output for="ambient-volume" id="ambient-volume-value">
+     <output id="ambient-volume-value">
       28%
      </output>
     </label>
+   </section>
+   <section aria-labelledby="appearance-heading" class="settings-group">
+    <h3 id="appearance-heading">
+     Appearance &amp; accent
+    </h3>
+    <div aria-label="Choose Light or Dark appearance" class="theme-options" role="radiogroup">
+     <label class="theme-option theme-light">
+      <input name="theme" type="radio" value="light"/>
+      <span class="theme-swatch">
+      </span>
+      <span>
+       Light
+      </span>
+     </label>
+     <label class="theme-option">
+      <input checked="" name="theme" type="radio" value="default"/>
+      <span class="theme-swatch theme-default">
+      </span>
+      <span>
+       Dark · Default
+      </span>
+     </label>
+     <label class="theme-option">
+      <input name="theme" type="radio" value="purple"/>
+      <span class="theme-swatch theme-purple">
+      </span>
+      <span>
+       Dark · Cyberpunk Purple
+      </span>
+     </label>
+     <label class="theme-option">
+      <input name="theme" type="radio" value="ocean"/>
+      <span class="theme-swatch theme-ocean">
+      </span>
+      <span>
+       Dark · Ocean Cyan
+      </span>
+     </label>
+     <label class="theme-option">
+      <input name="theme" type="radio" value="emerald"/>
+      <span class="theme-swatch theme-emerald">
+      </span>
+      <span>
+       Dark · Emerald Green
+      </span>
+     </label>
+    </div>
    </section>
    <button class="dialog-done-button" id="settings-done-button" type="button">
     Save preferences
@@ -934,12 +890,6 @@
      <div class="feature-grid">
       <div>
        <span aria-hidden="true">
-        ⏱️
-       </span>
-       Custom timer
-      </div>
-      <div>
-       <span aria-hidden="true">
         🔔
        </span>
        Voice alerts
@@ -970,9 +920,9 @@
       </div>
       <div>
        <span aria-hidden="true">
-        🌓
+        🎨
        </span>
-       Light &amp; Dark
+       Themes
       </div>
       <div>
        <span aria-hidden="true">
@@ -1005,4 +955,3 @@
   </div>
  </body>
 </html>
-```
